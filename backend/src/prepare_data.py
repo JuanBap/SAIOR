@@ -1,13 +1,24 @@
 """Ingesta y normalización del dataset Rappi.
-Ejecutar: python src/prepare_data.py <ruta_excel_o_csvs>
+
+Ejecutar:
+    python src/prepare_data.py <ruta_excel_o_dir_csvs>   # ingesta completa desde el raw
+    python src/prepare_data.py --reflag                   # recalcula QUALITY_FLAG sobre
+                                                          # data/processed (sin el raw)
 Produce parquet tidy en data/processed/ con flags de calidad.
+
+Los flags NO usan umbrales ad-hoc: se derivan del `valid_range` declarado por
+métrica en metrics_catalog.json (la capa semántica es la fuente de verdad).
 """
+import json
 import sys
 from pathlib import Path
-import pandas as pd
-import numpy as np
 
-OUT = Path(__file__).resolve().parents[1] / "data" / "processed"
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "data" / "processed"
+CATALOG = json.loads((Path(__file__).parent / "metrics_catalog.json").read_text())
+
 
 def load(source: str):
     p = Path(source)
@@ -18,6 +29,29 @@ def load(source: str):
         m = pd.read_csv(p / "metrics.csv")
         o = pd.read_csv(p / "orders.csv")
     return m, o
+
+
+def apply_quality_flags(ml: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Marca OUT_OF_RANGE todo valor fuera del valid_range del catálogo de su métrica.
+    Ej.: Lead Penetration es un ratio [0,1] — un 110% es imposible por definición."""
+    ml = ml.copy()
+    ml["QUALITY_FLAG"] = "OK"
+    total = 0
+    for metric, spec in CATALOG["metrics"].items():
+        vr = spec.get("valid_range")
+        if not vr:
+            continue
+        lo, hi = vr
+        in_metric = (ml.METRIC == metric) & ml.VALUE.notna()
+        bad = pd.Series(False, index=ml.index)
+        if lo is not None:
+            bad |= in_metric & (ml.VALUE < lo)
+        if hi is not None:
+            bad |= in_metric & (ml.VALUE > hi)
+        ml.loc[bad, "QUALITY_FLAG"] = "OUT_OF_RANGE"
+        total += int(bad.sum())
+    return ml, total
+
 
 def prepare(m: pd.DataFrame, o: pd.DataFrame):
     report = {}
@@ -34,11 +68,9 @@ def prepare(m: pd.DataFrame, o: pd.DataFrame):
     ml["WEEK"] = ml.WC.map(wk_m)
     ml = ml.drop(columns="WC")
 
-    # 3. Flags de calidad
-    ml["QUALITY_FLAG"] = "OK"
-    bad_lp = (ml.METRIC == "Lead Penetration") & (ml.VALUE > 1.5)
-    ml.loc[bad_lp, "QUALITY_FLAG"] = "OUT_OF_RANGE"
-    report["out_of_range_flags"] = int(bad_lp.sum())
+    # 3. Flags de calidad por valid_range del catálogo
+    ml, n_flags = apply_quality_flags(ml)
+    report["out_of_range_flags"] = n_flags
 
     wk_o = {f"L{i}W": -i for i in range(9)}
     ol = o.melt(id_vars=["COUNTRY", "CITY", "ZONE", "METRIC"],
@@ -55,7 +87,20 @@ def prepare(m: pd.DataFrame, o: pd.DataFrame):
     report["zones_orders"] = int(o[["COUNTRY", "CITY", "ZONE"]].drop_duplicates().shape[0])
     return report
 
+
+def reflag():
+    """Recalcula los flags sobre el parquet procesado (útil si cambia el catálogo
+    o no se dispone del Excel original)."""
+    ml = pd.read_parquet(OUT / "metrics_long.parquet").drop(columns=["QUALITY_FLAG"])
+    ml, n = apply_quality_flags(ml)
+    ml.to_parquet(OUT / "metrics_long.parquet", index=False)
+    return {"out_of_range_flags": n, "rows": len(ml)}
+
+
 if __name__ == "__main__":
-    src = sys.argv[1] if len(sys.argv) > 1 else "data/raw"
-    m, o = load(src)
-    print(prepare(m, o))
+    if sys.argv[1:] == ["--reflag"]:
+        print(reflag())
+    else:
+        src = sys.argv[1] if len(sys.argv) > 1 else "data/raw"
+        m, o = load(src)
+        print(prepare(m, o))

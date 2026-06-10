@@ -1,0 +1,19 @@
+# --- Data layer ---
+pandas>=2.2
+pyarrow>=16
+openpyxl>=3.1          # read the source .xlsx in prepare_data.py
+
+# --- Validation / schemas ---
+pydantic>=2.7
+
+# --- Agent (Claude tool use) ---
+anthropic>=0.40
+
+# --- API ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sse-starlette>=2.1     # SSE streaming for /chat
+python-dotenv>=1.0
+
+# --- Insights engine (Block C) ---
+scipy>=1.13            # Spearman correlations, winsorization

@@ -19,7 +19,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -30,6 +30,7 @@ load_dotenv(SRC.parent / ".env")  # backend/.env
 import os  # noqa: E402  (después de load_dotenv para que ANTHROPIC_MODEL ya esté disponible)
 
 from agent import stream_agent  # noqa: E402
+from insights.report import build_report, narrate, to_markdown  # noqa: E402
 
 app = FastAPI(title="Rappi Insights API", version="0.1.0")
 
@@ -100,6 +101,34 @@ def export_csv(req: ExportRequest):
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# --- Insights (Sistema de Insights Automáticos, 30%) -----------------------
+_REPORT_CACHE: dict = {}
+
+
+def _get_report(refresh: bool = False) -> dict:
+    if refresh or "report" not in _REPORT_CACHE:
+        _REPORT_CACHE["report"] = build_report()
+    return _REPORT_CACHE["report"]
+
+
+@app.get("/insights")
+def insights(refresh: bool = False) -> dict:
+    """Reporte ejecutivo estructurado (JSON): resumen, top hallazgos, detalle por categoría, calidad."""
+    return _get_report(refresh)
+
+
+@app.get("/insights/markdown")
+def insights_markdown(ai: bool = False, refresh: bool = False):
+    """Reporte ejecutivo en Markdown. ai=true antepone una síntesis redactada por Claude."""
+    report = _get_report(refresh)
+    md = to_markdown(report)
+    if ai:
+        prose = narrate(report)
+        if prose:
+            md = f"## Síntesis ejecutiva (IA)\n\n{prose}\n\n---\n\n{md}"
+    return Response(content=md, media_type="text/markdown; charset=utf-8")
 
 
 @app.delete("/session/{session_id}")

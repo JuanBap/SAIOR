@@ -1,11 +1,12 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Download } from "lucide-react";
 
 import type { TableSpec } from "@/lib/api";
 import { fmtValue } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 function csvEscape(v: unknown): string {
   const s = v === null || v === undefined ? "" : String(v);
@@ -46,22 +47,35 @@ function cell(col: string, v: string | number | null, format?: string): React.Re
   return String(v);
 }
 
+/** Colapsada por defecto: el gráfico cuenta la historia; la tabla es el detalle
+ *  bajo demanda (y la vía de export CSV). Evita el muro de widgets por respuesta. */
 export function TableCard({ table }: { table: TableSpec }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Card className="my-3 gap-2 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {table.title} <span className="text-xs">· {table.rows.length} filas</span>
-        </CardTitle>
-        <CardAction>
-          <Button size="xs" variant="outline" onClick={() => downloadCSV(table)}>
-            <Download data-icon="inline-start" />
-            CSV
-          </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="px-4">
-        <div className="max-h-80 overflow-auto rounded-lg border">
+    <div className="my-2 rounded-xl border bg-card/60">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          aria-expanded={open}
+        >
+          <ChevronRight
+            className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-90")}
+          />
+          <span className="truncate">
+            {open ? table.title : `Ver datos — ${table.title}`}
+          </span>
+          <span className="shrink-0 text-[11px] opacity-70">· {table.rows.length} filas</span>
+        </button>
+        <Button size="xs" variant="ghost" onClick={() => downloadCSV(table)} title="Exportar CSV">
+          <Download data-icon="inline-start" />
+          CSV
+        </Button>
+      </div>
+
+      {open && (
+        <div className="max-h-80 overflow-auto border-t">
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b text-left text-muted-foreground">
@@ -85,7 +99,7 @@ export function TableCard({ table }: { table: TableSpec }) {
             </tbody>
           </table>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }

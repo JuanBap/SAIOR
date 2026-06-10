@@ -24,3 +24,4 @@ frontend/node_modules/
 
 # Note: backend/data/processed/*.parquet IS tracked on purpose so the
 # project runs after clone without the source Excel.
+.claude/settings.local.json

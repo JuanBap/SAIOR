@@ -131,6 +131,14 @@ def insights_markdown(ai: bool = False, refresh: bool = False):
     return Response(content=md, media_type="text/markdown; charset=utf-8")
 
 
+@app.get("/insights/narrative")
+def insights_narrative(refresh: bool = False) -> dict:
+    """Síntesis ejecutiva redactada por Claude desde los hallazgos ya calculados.
+    Devuelve available=false si no hay ANTHROPIC_API_KEY configurada."""
+    text = narrate(_get_report(refresh))
+    return {"text": text, "available": bool(text)}
+
+
 @app.delete("/session/{session_id}")
 def reset_session(session_id: str) -> dict:
     SESSIONS.pop(session_id, None)

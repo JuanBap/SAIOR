@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from query_engine import CATALOG, VALID_COUNTRIES, _metrics  # noqa: E402
 from insights.detectors import (  # noqa: E402
     CORR_MIN_RHO, PEER_MIN, SIGMA_THRESHOLD, TREND_MIN_WEEKS, WOW_THRESHOLD,
-    run_all_detectors,
+    heatmap_matrix, run_all_detectors,
 )
 
 _CAT_TITLE = {
@@ -78,6 +78,7 @@ def build_report(*, top_overall: int = 6, top_per_cat: int = 5, generated_at: st
         "top_findings": top,
         "positive_signals": positives,
         "by_category": {k: cats[k][:top_per_cat] for k in _CAT_ORDER},
+        "heatmap": heatmap_matrix(),
         "quality": cats["quality"],
         "coverage": {"zones": n_zones, "countries": VALID_COUNTRIES, "weeks": "-8 a 0 (8 semanas)"},
         "methodology": {

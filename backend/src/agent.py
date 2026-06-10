@@ -421,7 +421,12 @@ async def stream_agent(
     model = model or DEFAULT_MODEL
     convo: list[dict] = list(messages)
     answer_parts: list[str] = []
-    usage = {"input_tokens": 0, "output_tokens": 0}
+    usage = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+    }
 
     try:
         client = anthropic.AsyncAnthropic()
@@ -442,6 +447,8 @@ async def stream_agent(
 
             usage["input_tokens"] += msg.usage.input_tokens
             usage["output_tokens"] += msg.usage.output_tokens
+            usage["cache_read_input_tokens"] += getattr(msg.usage, "cache_read_input_tokens", 0) or 0
+            usage["cache_creation_input_tokens"] += getattr(msg.usage, "cache_creation_input_tokens", 0) or 0
             convo.append({"role": "assistant", "content": msg.content})
 
             tool_uses = [b for b in msg.content if b.type == "tool_use"]

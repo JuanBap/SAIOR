@@ -345,6 +345,34 @@ def detect_quality() -> list[dict]:
     return sorted(out, key=lambda f: f["impact_score"], reverse=True)
 
 
+def heatmap_matrix() -> dict:
+    """Matriz país × métrica para el heatmap de /insights: promedio simple por país
+    (semana 0, flags excluidos, GP UE winsorizado) + score 0-1 normalizado min-max
+    dentro de cada métrica, invertido cuando lower-is-better (1 = mejor siempre)."""
+    df = _clean_df0()
+    g = df.groupby(["METRIC", "COUNTRY"]).VALUE.mean().rename("value").reset_index()
+    cells = []
+    for metric, sub in g.groupby("METRIC"):
+        vmin, vmax = float(sub.value.min()), float(sub.value.max())
+        rng = vmax - vmin
+        hib = _hib(metric)
+        for _, r in sub.iterrows():
+            pct = 0.5 if rng == 0 else (float(r.value) - vmin) / rng
+            cells.append({
+                "metric": metric,
+                "country": r.COUNTRY,
+                "value": round(float(r.value), 4),
+                "score": round(pct if hib else 1 - pct, 3),
+            })
+    present = set(g.METRIC)
+    return {
+        "metrics": [m for m in METRICS if m in present],
+        "countries": sorted(df.COUNTRY.unique().tolist()),
+        "cells": cells,
+        "formats": {m: CATALOG["metrics"][m]["format"] for m in METRICS},
+    }
+
+
 def run_all_detectors() -> dict[str, list[dict]]:
     return {
         "anomaly": detect_anomalies(),

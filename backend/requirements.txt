@@ -1,0 +1,30 @@
+# --- Data layer ---
+pandas>=2.2
+pyarrow>=16
+openpyxl>=3.1          # read the source .xlsx in prepare_data.py
+
+# --- Validation / schemas ---
+pydantic>=2.7
+
+# --- Agent (Claude tool use) ---
+anthropic>=0.40
+
+# --- API ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sse-starlette>=2.1     # SSE streaming for /chat
+python-dotenv>=1.0
+
+# --- Insights engine (Block C) ---
+scipy>=1.13            # Spearman correlations, winsorization
+markdown>=3.6          # reporte de insights -> HTML para el email
+
+# --- Supabase / Postgres (arquitectura v2) ---
+psycopg[binary]>=3.2   # conexión Postgres (ETL, snapshot, nivel 2)
+psycopg-pool>=3.2      # pool de conexiones (persistencia de conversaciones)
+sqlglot>=25            # validación AST del SQL generado (sql_guard)
+PyJWT[crypto]>=2.9     # validación local del JWT de Supabase Auth
+httpx>=0.27            # Admin API de Supabase (seed de usuarios)
+
+# --- Tests ---
+pytest>=8.2            # golden regression suite (tests/)

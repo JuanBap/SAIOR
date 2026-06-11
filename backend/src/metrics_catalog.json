@@ -1,0 +1,148 @@
+{
+  "metrics": {
+    "Lead Penetration": {
+      "definition": "Tiendas habilitadas en Rappi / (leads identificados + habilitadas + tiendas que salieron)",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["penetracion de leads", "lead pen", "penetración"],
+      "business_area": "Growth / Comercial",
+      "caveat": "32 zonas (principalmente Ecuador) tienen valores >1 fuera de rango; se reportan con flag de calidad."
+    },
+    "Perfect Orders": {
+      "definition": "Órdenes sin cancelaciones, defectos ni demora / Total de órdenes",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["ordenes perfectas", "perfect order", "PO", "calidad de orden"],
+      "business_area": "Operations"
+    },
+    "Gross Profit UE": {
+      "definition": "Margen bruto / Total de órdenes (unit economics por orden)",
+      "unit": "currency_per_order",
+      "format": "decimal_2",
+      "higher_is_better": true,
+      "valid_range": null,
+      "aliases": ["gross profit", "GP UE", "margen bruto", "rentabilidad", "unit economics", "profit"],
+      "business_area": "Finance",
+      "caveat": "Puede ser negativo (zona pierde dinero por orden). Outliers extremos hasta -97."
+    },
+    "Pro Adoption (Last Week Status)": {
+      "definition": "Usuarios con suscripción Pro / Total usuarios de Rappi",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["pro adoption", "adopcion pro", "suscripcion pro", "rappi pro"],
+      "business_area": "Loyalty"
+    },
+    "% PRO Users Who Breakeven": {
+      "definition": "Usuarios Pro cuyo valor generado cubre el costo de su membresía / Total usuarios Pro",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["pro breakeven", "breakeven pro", "usuarios pro rentables"],
+      "business_area": "Loyalty / Finance"
+    },
+    "MLTV Top Verticals Adoption": {
+      "definition": "Usuarios con órdenes en distintas verticales (restaurantes, super, pharmacy, liquors) / Total usuarios",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["mltv", "multivertical", "adopcion verticales", "cross vertical"],
+      "business_area": "Growth"
+    },
+    "Non-Pro PTC > OP": {
+      "definition": "Conversión de usuarios No Pro de 'Proceed to Checkout' a 'Order Placed'",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["checkout conversion", "ptc op", "conversion checkout", "non pro conversion"],
+      "business_area": "Product / Conversion funnel"
+    },
+    "Restaurants SST > SS CVR": {
+      "definition": "% de usuarios que tras seleccionar la vertical Restaurantes, seleccionan una tienda de la lista",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["sst ss restaurantes", "conversion seleccion tienda restaurantes"],
+      "business_area": "Product / Conversion funnel"
+    },
+    "Restaurants SS > ATC CVR": {
+      "definition": "Conversión en restaurantes de 'Select Store' a 'Add to Cart'",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["ss atc", "add to cart restaurantes", "conversion carrito"],
+      "business_area": "Product / Conversion funnel"
+    },
+    "Retail SST > SS CVR": {
+      "definition": "% de usuarios que tras seleccionar Supermercados, seleccionan una tienda de la lista",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["sst ss retail", "conversion seleccion tienda retail", "supermercados conversion"],
+      "business_area": "Product / Conversion funnel"
+    },
+    "% Restaurants Sessions With Optimal Assortment": {
+      "definition": "Sesiones con un mínimo de 40 restaurantes / Total de sesiones",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["optimal assortment", "surtido optimo", "assortment"],
+      "business_area": "Supply / Selection"
+    },
+    "Restaurants Markdowns / GMV": {
+      "definition": "Descuentos totales en órdenes de restaurantes / GMV de restaurantes",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": false,
+      "valid_range": [0, 1],
+      "aliases": ["markdowns", "descuentos", "markdown gmv", "inversion en descuentos"],
+      "business_area": "Finance / Pricing",
+      "caveat": "Métrica de costo: más alto = más gasto en descuentos. Interpretación depende de estrategia (inversión vs. ineficiencia)."
+    },
+    "Turbo Adoption": {
+      "definition": "Usuarios que compran en Turbo / Total usuarios con tiendas Turbo disponibles",
+      "unit": "ratio",
+      "format": "percent",
+      "higher_is_better": true,
+      "valid_range": [0, 1],
+      "aliases": ["turbo", "adopcion turbo", "rappi turbo"],
+      "business_area": "Turbo / Quick commerce",
+      "caveat": "Solo disponible en 285 zonas (no todas tienen Turbo). Ausencia no implica mal desempeño."
+    },
+    "Orders": {
+      "definition": "Volumen de órdenes por zona y semana (dataset separado)",
+      "unit": "count",
+      "format": "integer",
+      "higher_is_better": true,
+      "valid_range": [0, null],
+      "aliases": ["ordenes", "volumen", "pedidos", "demanda"],
+      "business_area": "Operations",
+      "caveat": "1,242 zonas en este dataset; 978 cruzan con el dataset de métricas. Tiene nulos en semanas tempranas."
+    }
+  },
+  "dimensions": {
+    "COUNTRY": {"values": ["AR", "BR", "CL", "CO", "CR", "EC", "MX", "PE", "UY"], "aliases": {"argentina": "AR", "brasil": "BR", "brazil": "BR", "chile": "CL", "colombia": "CO", "costa rica": "CR", "ecuador": "EC", "mexico": "MX", "méxico": "MX", "peru": "PE", "perú": "PE", "uruguay": "UY"}},
+    "ZONE_TYPE": {"values": ["Wealthy", "Non Wealthy"], "aliases": {"ricas": "Wealthy", "alto poder adquisitivo": "Wealthy", "no wealthy": "Non Wealthy", "populares": "Non Wealthy"}},
+    "ZONE_PRIORITIZATION": {"values": ["High Priority", "Prioritized", "Not Prioritized"], "aliases": {"alta prioridad": "High Priority", "priorizada": "Prioritized", "no priorizada": "Not Prioritized"}},
+    "WEEK": {"description": "Entero de -8 (hace 8 semanas) a 0 (semana actual). 'esta semana' = 0, 'semana pasada' = -1, 'últimas 5 semanas' = -4..0."}
+  },
+  "business_concepts": {
+    "zona problemática": "Zona con métricas deterioradas: caída WoW > 10% en métricas clave, o tendencia negativa de 3+ semanas, o Gross Profit UE negativo, o Perfect Orders bajo el p25 de su país.",
+    "zona saludable": "Métricas estables o en mejora, Gross Profit UE positivo, Perfect Orders sobre la mediana de su país.",
+    "crecimiento": "Variación porcentual de Orders entre semanas; 'crecen más' = mayor % de cambio en la ventana indicada.",
+    "deterioro": "Caída sostenida o abrupta de una métrica donde higher_is_better=true (o subida si higher_is_better=false).",
+    "zonas similares": "Mismo COUNTRY y mismo ZONE_TYPE (peer group para benchmarking)."
+  }
+}

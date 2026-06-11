@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
   Download,
   Loader2,
+  Mail,
   Printer,
   RefreshCw,
+  Send,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
@@ -15,14 +18,18 @@ import {
   downloadInsightsMarkdown,
   getInsights,
   getNarrative,
+  sendInsightsEmail,
   type InsightsReport,
 } from "@/lib/api";
+import { Input } from "@/components/ui/input";
 import { CategoryTables } from "@/components/insights/category-tables";
 import { FindingCard } from "@/components/insights/finding-card";
 import { Heatmap } from "@/components/insights/heatmap";
 import { Md } from "@/components/chat/markdown";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { downloadElementPdf } from "@/lib/pdf";
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -43,6 +50,49 @@ export default function InsightsPage() {
   const [error, setError] = useState<string | null>(null);
   const [narrative, setNarrative] = useState<string | null>(null);
   const [narrating, setNarrating] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailState, setEmailState] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+
+  async function exportPdf() {
+    const ok = await confirm({
+      title: "Descargar reporte en PDF",
+      message: "Se generará un PDF con el reporte de insights completo. ¿Continuar?",
+      confirmText: "Sí, descargar",
+      cancelText: "No",
+    });
+    if (!ok) return;
+    setPdfBusy(true);
+    try {
+      await downloadElementPdf(reportRef.current, "insights-rappi.pdf");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function sendEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setEmailState("sending");
+    setEmailMsg(null);
+    try {
+      const r = await sendInsightsEmail(emailTo, !!narrative);
+      if (r.sent) {
+        setEmailState("ok");
+        setEmailMsg(`Reporte enviado a ${r.to}`);
+        setTimeout(() => setEmailOpen(false), 2500);
+      } else {
+        setEmailState("error");
+        setEmailMsg(r.message ?? "No se pudo enviar.");
+      }
+    } catch {
+      setEmailState("error");
+      setEmailMsg("Error de conexión con el backend.");
+    }
+  }
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -108,7 +158,7 @@ export default function InsightsPage() {
   const s = report.summary;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+    <div ref={reportRef} className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -120,7 +170,7 @@ export default function InsightsPage() {
             determinista, sin LLM en el cálculo
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 print:hidden">
+        <div data-no-pdf="true" className="flex flex-wrap gap-2 print:hidden">
           <Button size="sm" variant="outline" onClick={() => load(true)} disabled={loading}>
             {loading ? (
               <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -132,8 +182,24 @@ export default function InsightsPage() {
           <Button size="sm" variant="outline" onClick={downloadInsightsMarkdown}>
             <Download data-icon="inline-start" /> Markdown
           </Button>
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
-            <Printer data-icon="inline-start" /> PDF
+          <Button size="sm" variant="outline" onClick={exportPdf} disabled={pdfBusy}>
+            {pdfBusy ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <Printer data-icon="inline-start" />
+            )}
+            PDF
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setEmailOpen((o) => !o);
+              setEmailState("idle");
+              setEmailMsg(null);
+            }}
+          >
+            <Mail data-icon="inline-start" /> Email
           </Button>
           <Button size="sm" onClick={generateNarrative} disabled={narrating}>
             {narrating ? (
@@ -145,6 +211,46 @@ export default function InsightsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Mini-formulario de email */}
+      {emailOpen && (
+        <form
+          onSubmit={sendEmail}
+          data-no-pdf="true"
+          className="flex flex-wrap items-center gap-2 rounded-xl border bg-card/60 p-3 print:hidden"
+        >
+          <Mail className="size-4 text-rappi-soft" />
+          <Input
+            type="email"
+            required
+            placeholder="destinatario@empresa.com"
+            value={emailTo}
+            onChange={(e) => setEmailTo(e.target.value)}
+            className="h-9 w-64"
+            autoFocus
+          />
+          <Button type="submit" size="sm" disabled={emailState === "sending"}>
+            {emailState === "sending" ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <Send data-icon="inline-start" />
+            )}
+            Enviar reporte{narrative ? " + síntesis IA" : ""}
+          </Button>
+          {emailMsg && (
+            <span
+              className={`flex items-center gap-1.5 text-xs ${
+                emailState === "ok"
+                  ? "text-emerald-600 dark:text-emerald-300"
+                  : "text-amber-700 dark:text-amber-300"
+              }`}
+            >
+              {emailState === "ok" && <CheckCircle2 className="size-3.5" />}
+              {emailMsg}
+            </span>
+          )}
+        </form>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -185,7 +291,7 @@ export default function InsightsPage() {
       {/* Señales positivas */}
       {report.positive_signals.length > 0 && (
         <section className="space-y-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
             <TrendingUp className="size-4" /> Señales positivas
           </h2>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -198,7 +304,7 @@ export default function InsightsPage() {
                 <p className="mt-0.5 text-muted-foreground">
                   {[f.city, f.zone].filter(Boolean).join(" / ")} ({f.country})
                 </p>
-                <p className="mt-1 font-mono text-[11px] text-emerald-200/90">{f.evidence}</p>
+                <p className="mt-1 font-mono text-[11px] text-emerald-700/90 dark:text-emerald-200/90">{f.evidence}</p>
               </div>
             ))}
           </div>
@@ -213,13 +319,13 @@ export default function InsightsPage() {
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-400" />
           <div>
-            <p className="font-medium text-amber-200">Calidad de datos</p>
+            <p className="font-medium text-amber-800 dark:text-amber-200">Calidad de datos</p>
             {report.quality.map((f, i) => (
-              <p key={i} className="mt-1 text-[13px] text-amber-100/80">
+              <p key={i} className="mt-1 text-[13px] text-amber-800/80 dark:text-amber-100/80">
                 <span className="font-medium">{f.metric}:</span> {f.evidence}
               </p>
             ))}
-            <p className="mt-1.5 text-[12px] text-amber-200/60 italic">
+            <p className="mt-1.5 text-[12px] text-amber-700/70 dark:text-amber-200/60 italic">
               {report.quality[0]?.recommendation}
             </p>
           </div>

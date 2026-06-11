@@ -32,7 +32,7 @@ function cell(col: string, v: string | number | null, format?: string): React.Re
     return v === "OK" ? (
       <span className="text-muted-foreground">OK</span>
     ) : (
-      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
         {v}
       </span>
     );
@@ -74,6 +74,11 @@ export function TableCard({ table }: { table: TableSpec }) {
         </Button>
       </div>
 
+      {open && table.sql && (
+        <pre className="overflow-x-auto border-t bg-muted/30 px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-amber-700 dark:text-amber-200/80">
+          {table.sql}
+        </pre>
+      )}
       {open && (
         <div className="max-h-80 overflow-auto border-t">
           <table className="w-full text-xs">

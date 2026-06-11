@@ -1,12 +1,15 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, FileDown, Loader2 } from "lucide-react";
 
 import type { Segment, ToolCall, Turn } from "@/components/chat/types";
 import { ChartCard } from "@/components/chat/chart-card";
 import { Md } from "@/components/chat/markdown";
 import { TableCard } from "@/components/chat/table-card";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { downloadElementPdf } from "@/lib/pdf";
 import { costUSD, totalInputTokens } from "@/lib/format";
 
 /** Resumen compacto de los parámetros con que el agente llamó la herramienta. */
@@ -21,6 +24,7 @@ function toolParams(input?: Record<string, unknown>): string {
     "text",
     "weeks",
     "top_n",
+    "purpose",
   ];
   const parts: string[] = [];
   for (const k of keys) {
@@ -57,6 +61,26 @@ function SegmentView({ seg }: { seg: Segment }) {
 }
 
 export function TurnView({ turn }: { turn: Turn }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+  const [downloading, setDownloading] = useState(false);
+
+  async function exportPdf() {
+    const ok = await confirm({
+      title: "Descargar respuesta en PDF",
+      message: "Se generará un PDF con esta respuesta (texto, gráfico y tabla). ¿Continuar?",
+      confirmText: "Sí, descargar",
+      cancelText: "No",
+    });
+    if (!ok) return;
+    setDownloading(true);
+    try {
+      await downloadElementPdf(ref.current, "respuesta-saior.pdf");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (turn.role === "user") {
     const text = turn.segments[0]?.kind === "text" ? turn.segments[0].text : "";
     return (
@@ -69,7 +93,7 @@ export function TurnView({ turn }: { turn: Turn }) {
   }
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3" ref={ref}>
       <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-lg bg-rappi text-[11px] font-black text-white">
         R
       </span>
@@ -82,18 +106,49 @@ export function TurnView({ turn }: { turn: Turn }) {
           <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-rappi-soft align-text-bottom" />
         )}
         {turn.error && (
-          <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             {turn.error}
           </div>
         )}
         {turn.usage && (
-          <p className="mt-1.5 text-[11px] text-muted-foreground/70">
-            claude-sonnet-4-6 · {totalInputTokens(turn.usage).toLocaleString("es")} in
-            {(turn.usage.cache_read_input_tokens ?? 0) > 0 &&
-              ` (${(turn.usage.cache_read_input_tokens ?? 0).toLocaleString("es")} caché)`}{" "}
-            / {turn.usage.output_tokens.toLocaleString("es")} out tokens · ≈ $
-            {costUSD(turn.usage).toFixed(4)} USD
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/70">
+            {turn.tier === "generated" ? (
+              <span
+                className="rounded bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-700 dark:text-amber-300"
+                title="Esta respuesta usó SQL generado por el agente (read-only, validado por AST y auditado), además de las consultas verificadas."
+              >
+                🧪 SQL generado · auditado
+              </span>
+            ) : (
+              <span
+                className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700/90 dark:text-emerald-300/80"
+                title="Respuesta resuelta solo con consultas verificadas (deterministas, con tests de regresión)."
+              >
+                ✓ consultas verificadas
+              </span>
+            )}
+            <span>
+              claude-sonnet-4-6 · {totalInputTokens(turn.usage).toLocaleString("es")} in
+              {(turn.usage.cache_read_input_tokens ?? 0) > 0 &&
+                ` (${(turn.usage.cache_read_input_tokens ?? 0).toLocaleString("es")} caché)`}{" "}
+              / {turn.usage.output_tokens.toLocaleString("es")} out tokens · ≈ $
+              {costUSD(turn.usage).toFixed(4)} USD
+            </span>
+            <button
+              data-no-pdf="true"
+              onClick={exportPdf}
+              disabled={downloading}
+              title="Descargar esta respuesta como PDF"
+              className="flex items-center gap-1 rounded px-1 text-muted-foreground/70 transition-colors hover:text-foreground disabled:opacity-50 print:hidden"
+            >
+              {downloading ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <FileDown className="size-3" />
+              )}
+              PDF
+            </button>
           </p>
         )}
       </div>

@@ -39,6 +39,22 @@ Usar las tarjetas clickeables (suben la velocidad de la demo). Orden y qué señ
 Cerrar la sección: "cada respuesta costó ~2 centavos de dólar y está anclada a un JSON
 calculado que puedo auditar."
 
+### Momentos v2 para intercalar en la demo (multiusuario + nivel 2)
+
+- **Apertura**: entrar por la landing → login como `juan@saior.demo` ("auth real de
+  Supabase; cada usuario tiene sus conversaciones").
+- Tras la pregunta 2: **recargar la página** → la conversación sigue en el sidebar y el
+  replay reproduce los gráficos idénticos ("persistencia con replay fiel: lo que ves sale
+  del mismo JSON determinista que se guardó").
+- Pregunta extra nivel 2: *"¿Cuál es la mediana de Perfect Orders por ciudad en Colombia?"*
+  → señalar el badge 🧪 "SQL generado · auditado" y expandir la tabla para mostrar el SQL.
+  Frase: "cuando ningún tool cubre la pregunta, el agente escribe un SELECT — read-only,
+  validado por AST, con LIMIT y timeout, y auditado en query_log. Y la UI lo declara:
+  transparencia sobre el nivel de garantía."
+- Si preguntan por seguridad: "intenten pedirle que borre datos — el validador lo rechaza,
+  el rol de Postgres no puede escribir, y el intento queda auditado." (test en vivo
+  opcional: el runner ya lo cubre.)
+
 ## 3. Insights automáticos (5 min)
 
 Abrir `/insights` y recorrer de arriba a abajo:

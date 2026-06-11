@@ -1,18 +1,20 @@
 # Raw data
 
-Coloca aquí el Excel original:
+`dummydata.xlsx` — el Excel original del caso (datos anonimizados/randomizados, según la
+nota del brief). Hojas: `RAW_INPUT_METRICS`, `RAW_ORDERS`, `RAW_SUMMARY`.
 
-```
-Sistema_de_Análisis_Inteligente_para_Operaciones_Rappi_-_Dummy_Data.xlsx
-```
-
-Hojas esperadas: `RAW_INPUT_METRICS`, `RAW_ORDERS`.
-
-Luego regenera los parquet (desde `backend/`):
+Regenerar los parquet de `../processed/` desde cero (desde `backend/`):
 
 ```bash
-python src/prepare_data.py data/raw/<archivo>.xlsx
+.venv/bin/python src/prepare_data.py data/raw/dummydata.xlsx
 ```
 
-Los parquet en `../processed/` ya vienen generados, así que este paso solo es
-necesario si cambian los datos o quieres reproducir la ingesta desde cero.
+Recalcular solo los flags de calidad (si cambia el catálogo):
+
+```bash
+.venv/bin/python src/prepare_data.py --reflag
+```
+
+Reproducibilidad verificada: la ingesta completa desde este Excel reproduce exactamente los
+valores congelados en `tests/test_golden_queries.py` (963 duplicados removidos, 253 flags
+OUT_OF_RANGE, 980 zonas de métricas, 1.242 de órdenes).

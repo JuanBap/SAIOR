@@ -1,0 +1,27 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+*.egg-info/
+.pytest_cache/
+
+# --- Secrets ---
+.env
+backend/.env
+
+# --- Node / Next.js ---
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+*.tsbuildinfo
+
+# --- OS / editor ---
+.DS_Store
+*.swp
+.idea/
+
+# Note: backend/data/processed/*.parquet IS tracked on purpose so the
+# project runs after clone without the source Excel.
+.claude/settings.local.json

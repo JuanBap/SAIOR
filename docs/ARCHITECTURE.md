@@ -1,125 +1,129 @@
-# Arquitectura — Sistema de Análisis Inteligente para Operaciones Rappi
+# Arquitectura — SAIOR (Sistema de Análisis Inteligente de Operaciones Rappi)
 
 **Principio rector: el LLM nunca calcula. El LLM traduce, orquesta y narra. Python calcula.**
 
 Esto convierte un sistema no determinista en uno de **precisión determinista**: la única
 tarea probabilística es la traducción de lenguaje natural a una llamada de función
-estructurada, y esa traducción es verificable, validable y testeable.
+estructurada — y esa traducción es verificable, validable y testeable (ver §4).
 
 ---
 
-## 1. Diagrama de arquitectura
+## 1. Diagrama
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  UI — Streamlit (chat + gráficos Plotly + export CSV)       │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│  ORQUESTADOR (agent loop)                                   │
-│  Claude API + Tool Use                                      │
-│  · System prompt = contexto de negocio + catálogo semántico │
-│  · Memoria conversacional (historial de mensajes)           │
-│  · Decide qué herramienta llamar y con qué parámetros       │
-└──────────────────────────┬──────────────────────────────────┘
-                           │  tool calls (JSON validado)
-┌──────────────────────────▼──────────────────────────────────┐
-│  QUERY ENGINE (Python puro, determinista)                   │
-│  Herramientas tipadas:                                      │
-│  · query_metrics(filtros, agregación, top_n, semanas)       │
-│  · compare_segments(métrica, dimensión, segmentos)          │
-│  · get_trend(métrica, zona/agregado, ventana)               │
-│  · cross_metric_analysis(métrica_a, métrica_b, umbrales)    │
-│  · growth_analysis(ventana, top_n) [usa Orders]             │
-│  · get_schema_info() / resolve_entity(texto)                │
-│  Validación: pydantic — parámetros inválidos → error claro  │
-│  que el LLM recibe y corrige (self-healing loop)            │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────────┐
-│  CAPA DE DATOS                                              │
-│  parquet tidy (metrics_long, orders_long) + catálogo        │
-│  semántico (metrics_catalog.json) + flags de calidad        │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  FRONTEND — Next.js 16 (App Router) + Tailwind v4 + shadcn/ui  │
+│  · Chat SSE con streaming token a token                        │
+│  · Gráficos Recharts + tablas expandibles con export CSV       │
+│  · /insights: dashboard + heatmap + Markdown/PDF + síntesis IA │
+└───────────────────────────┬────────────────────────────────────┘
+                            │ POST /chat (SSE) · GET /insights
+┌───────────────────────────▼────────────────────────────────────┐
+│  ORQUESTADOR (backend/src/agent.py)                            │
+│  Claude Sonnet 4.6 + tool use · temperature 0                  │
+│  · System prompt = catálogo semántico + conceptos de negocio   │
+│    + reglas de honestidad y estilo (cacheado: cache_control)   │
+│  · Memoria conversacional por session_id (incluye tool calls)  │
+│  · Self-healing: el error estructurado vuelve al modelo        │
+│  · Las visualizaciones NO las emite el LLM: se construyen en   │
+│    Python desde el resultado real de cada tool (SSE aparte)    │
+└───────────────────────────┬────────────────────────────────────┘
+                            │ llamadas tipadas (JSON Schema)
+┌───────────────────────────▼────────────────────────────────────┐
+│  QUERY ENGINE (backend/src/query_engine.py) — determinista     │
+│  query_metrics · compare_segments · get_trend ·                │
+│  aggregate_metric · cross_metric_analysis · growth_analysis ·  │
+│  get_schema_info · resolve_zone                                │
+│  Validación pydantic → error estructurado con sugerencias      │
+└───────────────────────────┬────────────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────────────┐
+│  CAPA DE DATOS                                                 │
+│  parquet tidy (zona × métrica × semana) + metrics_catalog.json │
+│  (13 métricas: definición, dirección, aliases ES, valid_range) │
+│  Flags OUT_OF_RANGE derivados del catálogo en la ingesta       │
+└────────────────────────────────────────────────────────────────┘
 
-  Paralelo, sin LLM en el cálculo:
-┌─────────────────────────────────────────────────────────────┐
-│  INSIGHTS ENGINE (batch, 30% del peso)                      │
-│  Detectores estadísticos puros:                             │
-│  · Anomalías WoW (>±10%)        · Tendencias 3+ semanas     │
-│  · Benchmarking peer-group      · Correlaciones (Spearman)  │
-│  · Oportunidades (gaps vs. mediana de peers)                │
-│  → JSON de hallazgos rankeados por impacto (ponderado por   │
-│    volumen de órdenes) → LLM SOLO redacta el reporte        │
-│    ejecutivo a partir de números ya calculados              │
-└─────────────────────────────────────────────────────────────┘
+  En paralelo, sin LLM en el cálculo:
+┌────────────────────────────────────────────────────────────────┐
+│  INSIGHTS ENGINE (backend/src/insights/)                       │
+│  Detectores: anomalías WoW ±10% · tendencias 3+ semanas ·      │
+│  benchmark peers >1.5σ · oportunidades High Priority ·         │
+│  correlaciones Spearman · calidad de datos                     │
+│  → ranking por impacto ponderado por órdenes →                 │
+│  → JSON / Markdown / heatmap; el LLM SOLO redacta la síntesis  │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ## 2. Las 7 defensas contra el no-determinismo
 
-| # | Defensa | Qué resuelve |
-|---|---------|--------------|
-| 1 | **Tool use con schema estricto** (pydantic): el LLM solo puede emitir JSON válido contra schemas tipados | Elimina alucinación de números — el LLM no tiene acceso libre a los datos |
-| 2 | **Catálogo semántico** inyectado en el system prompt: 13 métricas con definición, dirección (higher_is_better), aliases, caveats | Elimina ambigüedad de interpretación ("rentabilidad" → Gross Profit UE, siempre) |
-| 3 | **Resolución de entidades determinista**: fuzzy matching en Python (no en el LLM) para zonas/ciudades ("Chapinero" → CO/Bogota/Chapinero) | El LLM nunca inventa nombres de zonas |
-| 4 | **Self-healing loop**: si los parámetros son inválidos, el engine devuelve error estructurado y el LLM reintenta (máx. 2) | Convierte fallos de traducción en correcciones automáticas |
-| 5 | **Respuesta anclada a resultados**: el LLM redacta a partir del JSON de resultados reales devuelto por el engine; instrucción explícita de citar solo números presentes en el resultado | Cero números inventados en la narración |
-| 6 | **Temperature = 0** + system prompt con reglas de formato y negocio | Reduce varianza de traducción |
-| 7 | **Golden test set**: las 6 categorías de queries del brief + variantes, con respuesta esperada calculada a mano; suite de regresión ejecutable | Precisión demostrable y medible ante el evaluador (oro para el Q&A) |
+| # | Defensa | Qué elimina |
+|---|---------|-------------|
+| 1 | **Tool use con schemas estrictos** (pydantic + JSON Schema con enums/rangos): el LLM solo puede emitir parámetros válidos | Acceso libre del LLM a los datos |
+| 2 | **Catálogo semántico** en el system prompt: definición, dirección (`higher_is_better`), aliases en español y caveats por métrica | Ambigüedad de interpretación ("rentabilidad" → Gross Profit UE, siempre) |
+| 3 | **Resolución de entidades en Python** (`resolve_metric`/`resolve_zone`, fuzzy determinista) | Nombres de zonas/métricas inventados |
+| 4 | **Self-healing loop**: parámetros inválidos → error estructurado con `suggestions` → el modelo corrige (tope de iteraciones) | Fallos de traducción terminales |
+| 5 | **Narración anclada + visuales deterministas**: el LLM redacta solo desde el JSON de resultados; gráficos y tablas los construye Python desde ese mismo JSON | Números o gráficos fabricados |
+| 6 | **temperature = 0** | Varianza de traducción |
+| 7 | **Golden test set en dos niveles**: pytest congela los 6 casos del brief contra el engine; un runner en vivo pasa las preguntas reales por el agente y valida herramienta + parámetros + anclas (última corrida: 8/8 PASS, $0.17) | Precisión afirmada sin evidencia |
 
-## 3. Decisiones técnicas y justificación (15% de la rúbrica)
+> Defensa transversal: **la calidad de datos se resuelve por diseño, no por prompt**. Los
+> flags `OUT_OF_RANGE` se derivan del `valid_range` del catálogo en la ingesta (un Lead
+> Penetration de 110% es imposible por definición y jamás llega a un ranking).
+
+## 3. Decisiones técnicas y justificación
 
 | Decisión | Alternativa descartada | Justificación |
 |----------|------------------------|---------------|
-| **Tool use estructurado** | Text-to-SQL / text-to-pandas libre | Código generado libremente es inauditable y frágil; herramientas tipadas acotan el espacio de error y son testeables |
-| **Claude Sonnet** (claude-sonnet-4) | GPT-4 / open-source | Tool use nativo robusto, mejor seguimiento de instrucciones en español, costo ~$0.02–0.06 por sesión de 10 preguntas |
-| **Streamlit** | Gradio / Flask custom | Chat UI nativa, gráficos Plotly integrados, deploy gratis en Streamlit Cloud, velocidad de desarrollo |
-| **Parquet tidy** | CSV crudo en cada query | Formato largo = toda operación es un groupby/filter trivial; tipos preservados; 10x más rápido |
-| **Insights sin LLM en el cálculo** | LLM analizando datos crudos | Detección estadística es determinista, reproducible y defendible; el LLM solo aporta redacción ejecutiva |
-| **Impacto ponderado por órdenes** | Insights por % de cambio puro | Una caída de 15% en una zona de 270k órdenes importa más que en una de 200; esto es el "balance técnico-negocio" que piden |
+| **Tool use estructurado** | Text-to-SQL / text-to-pandas libre | Código generado libre es inauditable; herramientas tipadas acotan el espacio de error y son testeables unitariamente |
+| **Claude Sonnet 4.6** | Opus (5× costo), Haiku (menos robusto multivariable) | Mejor balance para tool-use + narración en español; ~$0.15–0.20 por sesión de 10 preguntas |
+| **FastAPI + SSE** | WebSockets / polling | Streaming token a token con un protocolo simple; los eventos `chart`/`table` viajan junto a los `token` |
+| **Next.js + shadcn/ui** | Streamlit / Gradio | UX de producto (streaming, tema propio, tablas expandibles) y diferenciación en la demo; Streamlit acopla UI y cómputo en un solo proceso |
+| **Recharts** | Plotly | Nativo de React, liviano; un solo lib de charts en todo el front |
+| **Parquet tidy** | CSV crudo por query | Todo es un groupby/filter trivial; tipos preservados; carga en ms con `lru_cache` |
+| **Insights sin LLM en el cálculo** | LLM "analizando" datos crudos | Detección estadística reproducible y defendible; el LLM solo aporta prosa ejecutiva |
+| **Impacto ponderado por órdenes** | Ranking por % de cambio puro | Una caída de 15% en una zona de 20k órdenes ≠ una de 200; es el balance técnico-negocio que pide el caso |
+| **Tabla colapsada + narración breve** | Volcar tabla + gráfico + tabla en texto | El gráfico cuenta la historia, el detalle queda a un clic, el LLM aporta el "so what" — no repite datos |
 
-## 4. Hallazgos del perfilado de datos (mencionar en la presentación — demuestra rigor)
+## 4. Por qué código y no una plataforma no-code (n8n / Zapier / Make)
 
-1. **Gross Profit UE viene duplicado exactamente** (1,904 filas duplicadas, valores idénticos) → dedupe en ingesta. Detectarlo es un punto a favor.
-2. **Lead Penetration tiene 32 zonas con valores imposibles** (>1, hasta 393.9, concentradas en Ecuador) → flag `OUT_OF_RANGE`; el bot lo advierte al reportar esas zonas.
-3. **Nulos crecientes hacia semanas antiguas** (113 en L8W → 0 en L0W): zonas nuevas sin historia → los cálculos de tendencia exigen mínimo de semanas válidas.
-4. **Turbo Adoption solo existe en 285/980 zonas** → ausencia ≠ mal desempeño; el catálogo lo documenta.
-5. **Orders (1,242 zonas) y Métricas (980 zonas) cruzan en 978** → joins siempre inner con advertencia de cobertura.
-6. **Gross Profit UE tiene outliers extremos** (hasta -97 por orden) → winsorización opcional en correlaciones para no distorsionar.
+| Dimensión | SAIOR (código) | n8n / Zapier / Make |
+|---|---|---|
+| Precisión numérica | El LLM nunca toca los datos: llamadas tipadas + pandas + temp 0 + golden tests | El LLM-node recibe los datos en el prompt y los "lee": alucinación posible, no testeable |
+| Queries complejas | 8 herramientas componibles + self-healing | Cada caso = rama manual del workflow; lo no previsto no tiene ruta |
+| Memoria conversacional | Historial completo con tool calls por sesión | Buffers simples; el contexto de qué se consultó se pierde |
+| Visualización + export | Charts deterministas + CSV + streaming SSE | Sin UI de chat propia; sin gráficos nativos |
+| Testabilidad | pytest (13 tests, <2s) + runner en vivo | Probar = ejecutar el flujo a mano |
+| Versionado | Git con diffs legibles y commits atómicos | Export JSON de workflows, review impracticable |
+| Latencia | Un proceso, parquet en memoria (ms por consulta) | Hop HTTP por nodo + datos en Sheets/Airtable |
+| Costo | ~$0.01–0.03 por consulta, directo al LLM | Plataforma + costo por ejecución/task + LLM |
+| Datos sensibles | Nunca salen del backend propio | Cruzan la nube del vendor |
+| Extensibilidad | Nueva capacidad = 1 función + 1 schema | Rediseño del workflow; vendor lock-in |
 
-## 5. Estructura del repositorio
+*Cuándo sí usaría no-code:* automatizaciones de integración simples ("si llega email,
+postear en Slack"). Este caso pide precisión auditable sobre 104k filas, UX conversacional
+con gráficos y un sistema de insights testeable — tres cosas cuya unidad de diseño es el
+*dato*, no el *flujo*.
 
-```
-rappi-ai-analyst/
-├── README.md                  # setup, arquitectura, costos, decisiones
-├── requirements.txt
-├── data/
-│   ├── raw/                   # Excel/CSVs originales
-│   └── processed/             # parquet tidy (generado por prepare_data.py)
-├── src/
-│   ├── prepare_data.py        # ingesta: dedupe, tidy, flags de calidad
-│   ├── metrics_catalog.json   # capa semántica (la fuente de verdad)
-│   ├── query_engine.py        # herramientas deterministas + pydantic
-│   ├── agent.py               # orquestador Claude + tool use + memoria
-│   ├── insights/
-│   │   ├── detectors.py       # anomalías, tendencias, benchmark, correlaciones
-│   │   └── report.py          # ranking por impacto + redacción LLM → MD/HTML
-│   └── app.py                 # Streamlit: chat + gráficos + export
-├── tests/
-│   └── test_golden_queries.py # las 6 categorías del brief + edge cases
-└── docs/
-    └── ARCHITECTURE.md
-```
+## 5. Hallazgos del perfilado de datos (resueltos por diseño)
 
-## 6. Plan de 48 horas (priorizado por rúbrica)
+1. **Gross Profit UE duplicado exacto** (~1.9k filas) → dedupe en la ingesta.
+2. **Lead Penetration con ratios imposibles** (>100%, hasta 393.9; 32 zonas en la semana
+   actual, concentradas en Ecuador) → flag `OUT_OF_RANGE` por `valid_range` del catálogo;
+   excluidas por defecto y reportadas como insight de calidad propio.
+3. **Nulos crecientes hacia el pasado** (zonas nuevas) → tendencias exigen semanas válidas.
+4. **Turbo Adoption solo en 285/980 zonas** → caveat en catálogo: ausencia ≠ mal desempeño.
+5. **Orders (1,242 zonas) ∩ métricas (980) = 978** → joins inner con nota de cobertura.
+6. **GP UE con outliers extremos** (hasta -97/orden) → winsorización p1/p99 en correlaciones,
+   benchmarking y heatmap (etiquetado `(winsor.)` cuando aplica, valor real preservado).
+7. **% explosivos sobre bases ~0** en anomalías WoW → se exige base previa ≥10% del IQR.
 
-| Bloque | Horas | Entregable | Peso cubierto |
-|--------|-------|-----------|---------------|
-| 1. Capa de datos + catálogo | 2 | ✅ ya hecho | base de todo |
-| 2. Query engine + herramientas | 4 | 6 tools deterministas testeadas | Bot 35% |
-| 3. Agente + system prompt | 3 | loop de tool use con memoria | Bot 35% |
-| 4. UI Streamlit + gráficos | 3 | chat funcional con Plotly | Bot + UX |
-| 5. Insights engine | 4 | detectores + reporte ejecutivo | Insights 30% |
-| 6. Golden tests + README | 2 | suite de regresión + docs | Código 5% |
-| 7. Guion de presentación + demo script | 2 | narrativa de 20 min + 5 queries demo | Presentación 20% |
-| Buffer / pulido | 4 | edge cases, export CSV, deploy opcional | Atención al detalle |
+## 6. Limitaciones y siguientes pasos
+
+- **Memoria por proceso** (dict): demo-grade; producción → Redis con TTL por sesión.
+- **Severidad dominada por GP UE** en hallazgos críticos (variaciones en moneda > ratios
+  acotados): siguiente iteración → normalizar por volatilidad histórica de cada métrica.
+- **Dataset estático**: el diseño tidy + catálogo admite ingesta incremental semanal y
+  alertas programadas (el insights engine ya es un batch reutilizable).
+- **Bonus pendientes por decisión**: deploy (Vercel + Railway/Render) y envío por email del
+  reporte — descartado el segundo a favor de la página /insights + exportes.

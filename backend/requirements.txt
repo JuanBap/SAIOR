@@ -18,5 +18,11 @@ python-dotenv>=1.0
 # --- Insights engine (Block C) ---
 scipy>=1.13            # Spearman correlations, winsorization
 
+# --- Supabase / Postgres (arquitectura v2) ---
+psycopg[binary]>=3.2   # conexión Postgres (ETL, snapshot, nivel 2)
+sqlglot>=25            # validación AST del SQL generado (sql_guard)
+PyJWT[crypto]>=2.9     # validación local del JWT de Supabase Auth
+httpx>=0.27            # Admin API de Supabase (seed de usuarios)
+
 # --- Tests ---
 pytest>=8.2            # golden regression suite (tests/)

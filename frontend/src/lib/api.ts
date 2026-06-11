@@ -28,7 +28,9 @@ export type TableSpec = {
   title: string;
   columns: string[];
   rows: (string | number | null)[][];
-  meta?: { format?: string };
+  meta?: { format?: string; tier?: string };
+  sql?: string;
+  tier?: string;
 };
 
 export type ToolEvent = {
@@ -51,7 +53,7 @@ export type SSEvent =
   | { event: "tool"; data: ToolEvent }
   | { event: "chart"; data: ChartSpec }
   | { event: "table"; data: TableSpec }
-  | { event: "done"; data: { conversation_id: string; usage: Usage } }
+  | { event: "done"; data: { conversation_id: string; usage: Usage; tier?: string } }
   | { event: "error"; data: { message: string } };
 
 // -------------------------------------------------------- conversaciones

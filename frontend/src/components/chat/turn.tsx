@@ -21,6 +21,7 @@ function toolParams(input?: Record<string, unknown>): string {
     "text",
     "weeks",
     "top_n",
+    "purpose",
   ];
   const parts: string[] = [];
   for (const k of keys) {
@@ -88,12 +89,29 @@ export function TurnView({ turn }: { turn: Turn }) {
           </div>
         )}
         {turn.usage && (
-          <p className="mt-1.5 text-[11px] text-muted-foreground/70">
-            claude-sonnet-4-6 · {totalInputTokens(turn.usage).toLocaleString("es")} in
-            {(turn.usage.cache_read_input_tokens ?? 0) > 0 &&
-              ` (${(turn.usage.cache_read_input_tokens ?? 0).toLocaleString("es")} caché)`}{" "}
-            / {turn.usage.output_tokens.toLocaleString("es")} out tokens · ≈ $
-            {costUSD(turn.usage).toFixed(4)} USD
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/70">
+            {turn.tier === "generated" ? (
+              <span
+                className="rounded bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-300"
+                title="Esta respuesta usó SQL generado por el agente (read-only, validado por AST y auditado), además de las consultas verificadas."
+              >
+                🧪 SQL generado · auditado
+              </span>
+            ) : (
+              <span
+                className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-300/80"
+                title="Respuesta resuelta solo con consultas verificadas (deterministas, con tests de regresión)."
+              >
+                ✓ consultas verificadas
+              </span>
+            )}
+            <span>
+              claude-sonnet-4-6 · {totalInputTokens(turn.usage).toLocaleString("es")} in
+              {(turn.usage.cache_read_input_tokens ?? 0) > 0 &&
+                ` (${(turn.usage.cache_read_input_tokens ?? 0).toLocaleString("es")} caché)`}{" "}
+              / {turn.usage.output_tokens.toLocaleString("es")} out tokens · ≈ $
+              {costUSD(turn.usage).toFixed(4)} USD
+            </span>
           </p>
         )}
       </div>

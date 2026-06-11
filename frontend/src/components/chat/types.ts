@@ -18,4 +18,5 @@ export type Turn = {
   usage?: Usage;
   error?: string;
   streaming?: boolean;
+  tier?: string;
 };

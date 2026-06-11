@@ -74,6 +74,11 @@ export function TableCard({ table }: { table: TableSpec }) {
         </Button>
       </div>
 
+      {open && table.sql && (
+        <pre className="overflow-x-auto border-t bg-muted/30 px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-amber-200/80">
+          {table.sql}
+        </pre>
+      )}
       {open && (
         <div className="max-h-80 overflow-auto border-t">
           <table className="w-full text-xs">

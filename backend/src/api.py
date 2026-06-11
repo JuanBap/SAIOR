@@ -101,8 +101,8 @@ class _TurnAccumulator:
                         tool["done"] = True
                         break
 
-    def content(self, usage: dict) -> dict:
-        return {"segments": self.segments, "tools": self.tools, "usage": usage}
+    def content(self, usage: dict, tier: str = "verified") -> dict:
+        return {"segments": self.segments, "tools": self.tools, "usage": usage, "tier": tier}
 
 
 @app.post("/chat")
@@ -122,18 +122,21 @@ async def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
     async def event_source():
         yield {"event": "meta", "data": json.dumps({"conversation_id": conv_id})}
         acc = _TurnAccumulator()
-        async for ev in stream_agent(full_history):
+        async for ev in stream_agent(
+            full_history, audit_ctx={"user_id": user.id, "conversation_id": conv_id}
+        ):
             etype = ev.get("type")
             if etype == "done":
+                tier = ev.get("tier", "verified")
                 try:
                     store.append_turn(user.id, conv_id, req.message,
-                                      acc.content(ev.get("usage", {})), ev["messages"])
+                                      acc.content(ev.get("usage", {}), tier), ev["messages"])
                 except Exception as e:  # noqa: BLE001 — el chat respondió; avisar sin romper
                     yield {"event": "error",
                            "data": json.dumps({"type": "error",
                                                "message": f"Respuesta no persistida: {e}"})}
                 yield {"event": "done",
-                       "data": json.dumps({"conversation_id": conv_id,
+                       "data": json.dumps({"conversation_id": conv_id, "tier": tier,
                                            "usage": ev.get("usage", {})}, ensure_ascii=False)}
             else:
                 acc.feed(ev)

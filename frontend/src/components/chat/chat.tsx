@@ -34,6 +34,7 @@ function storedToTurns(messages: StoredMessage[]): Turn[] {
       segments: (m.content.segments ?? []) as Segment[],
       tools: m.content.tools ?? [],
       usage: m.content.usage,
+      tier: m.content.tier,
     };
   });
 }
@@ -149,7 +150,8 @@ export function Chat() {
         } else if (ev.event === "table") {
           pushSegment({ kind: "table", table: ev.data });
         } else if (ev.event === "done") {
-          patchLast((t) => ({ ...t, usage: ev.data.usage, streaming: false }));
+          const { usage, tier } = ev.data;
+          patchLast((t) => ({ ...t, usage, tier, streaming: false }));
           refreshList();
         } else if (ev.event === "error") {
           const msg = ev.data.message;

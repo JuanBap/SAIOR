@@ -29,6 +29,8 @@ import anthropic
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # resolver query_engine desde cualquier CWD
 from query_engine import CATALOG, VALID_COUNTRIES, TOOL_REGISTRY  # noqa: E402
 
+RUN_SQL_ENABLED = os.getenv("RUN_SQL_ENABLED", "true").lower() in ("1", "true", "yes")
+
 DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 MAX_TOKENS = 4096
 MAX_ITERS = 8  # tope de vueltas del loop de tool use por mensaje del usuario
@@ -116,7 +118,27 @@ export a CSV. Por eso:
 No describas tu proceso interno ni menciones "herramientas/JSON" al usuario — tampoco sus nombres
 (query_metrics, compare_segments, etc.), ni siquiera dentro de las sugerencias: di "comparar por
 país" en lugar de "usar compare_segments". Responde como un analista de negocio que ya tiene los
-datos. Sé conciso; no inventes contexto que no esté en los datos."""
+datos. Sé conciso; no inventes contexto que no esté en los datos.{_render_run_sql_section()}"""
+
+
+def _render_run_sql_section() -> str:
+    if not RUN_SQL_ENABLED:
+        return ""
+    return """
+
+# Nivel 2 — run_sql (ÚLTIMO recurso)
+Si NINGUNA herramienta tipada puede responder (medianas/percentiles, agrupaciones no soportadas,
+ventanas temporales custom, joins nuevos), puedes escribir UN único SELECT de PostgreSQL sobre:
+- ops.metrics_long(country, city, zone, zone_type, zone_prioritization, metric, week, value, quality_flag)
+  · week: -8..0 (0 = semana actual) · filtra SIEMPRE quality_flag = 'OK' salvo que pidan lo contrario
+- ops.orders_long(country, city, zone, week, value)
+- ops.metric_catalog(metric, definition, format, higher_is_better, valid_lo, valid_hi, caveat)
+Reglas duras: solo SELECT (rol read-only, LIMIT ≤ 500, timeout 5s, queda auditado); en `purpose`
+declara qué pregunta de negocio responde y por qué ningún tool servía. PROHIBIDO usarlo para lo
+que un tool tipado ya hace. Los nombres de país son códigos: 'CO', 'MX', etc.
+Ejemplo (mediana por ciudad): SELECT city, percentile_cont(0.5) WITHIN GROUP (ORDER BY value) AS mediana
+FROM ops.metrics_long WHERE metric = 'Perfect Orders' AND country = 'CO' AND week = 0
+AND quality_flag = 'OK' GROUP BY city ORDER BY mediana LIMIT 50"""
 
 
 # ============================================================ tool schemas
@@ -265,6 +287,25 @@ TOOLS: list[dict] = [
     },
 ]
 
+if RUN_SQL_ENABLED:
+    TOOLS.append({
+        "name": "run_sql",
+        "description": "ÚLTIMO recurso: ejecuta UN SELECT de PostgreSQL sobre ops.* cuando ninguna "
+        "otra herramienta puede responder. Read-only, LIMIT 500, timeout 5s, auditado. "
+        "PROHIBIDO para lo que los tools tipados ya hacen.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "Un único SELECT (dialecto PostgreSQL)"},
+                "purpose": {
+                    "type": "string",
+                    "description": "Qué pregunta de negocio responde y por qué ningún tool servía",
+                },
+            },
+            "required": ["sql", "purpose"],
+        },
+    })
+
 
 # ============================================================ tool dispatch
 def dispatch_tool(name: str, args: dict | None) -> dict:
@@ -411,7 +452,7 @@ _SYSTEM_BLOCKS = [
 
 
 async def stream_agent(
-    messages: list[dict], *, model: str | None = None
+    messages: list[dict], *, model: str | None = None, audit_ctx: dict | None = None
 ) -> AsyncIterator[dict]:
     """Loop de tool use con streaming. Yields eventos:
       {"type": "token", "text": ...}          fragmento de narración
@@ -432,6 +473,7 @@ async def stream_agent(
     model = model or DEFAULT_MODEL
     convo: list[dict] = list(messages)
     answer_parts: list[str] = []
+    used_run_sql = False
     usage = {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -472,9 +514,34 @@ async def stream_agent(
             tool_results = []
             for tu in tool_uses:
                 yield {"type": "tool", "name": tu.name, "input": tu.input, "status": "running"}
-                result = dispatch_tool(tu.name, tu.input)
-                for vis in result_to_events(tu.name, result):
-                    yield vis
+                if tu.name == "run_sql" and RUN_SQL_ENABLED:
+                    import sql_guard  # lazy: solo si el nivel 2 se usa
+
+                    result = sql_guard.execute(
+                        str((tu.input or {}).get("sql", "")),
+                        purpose=str((tu.input or {}).get("purpose", "")),
+                        **(audit_ctx or {}),
+                    )
+                    used_run_sql = True
+                    if "error" not in result:
+                        yield {
+                            "type": "table",
+                            "tier": "generated",
+                            "title": (result.get("purpose") or "Consulta SQL generada")[:90],
+                            "columns": result["columns"],
+                            "rows": result["rows"],
+                            "meta": {"tier": "generated"},
+                            "sql": result["sql"],
+                        }
+                        # al modelo le basta una muestra: la tabla completa ya viajó a la UI
+                        if result["rowcount"] > 50:
+                            result = {**result, "rows": result["rows"][:50],
+                                      "note": f"se muestran 50 de {result['rowcount']} filas; "
+                                              "la tabla completa ya fue presentada al usuario"}
+                else:
+                    result = dispatch_tool(tu.name, tu.input)
+                    for vis in result_to_events(tu.name, result):
+                        yield vis
                 yield {"type": "tool", "name": tu.name, "status": "done"}
                 tool_results.append(
                     {
@@ -490,6 +557,7 @@ async def stream_agent(
             "messages": convo,
             "assistant_text": "".join(answer_parts).strip(),
             "usage": usage,
+            "tier": "generated" if used_run_sql else "verified",
         }
     except anthropic.APIError as e:
         yield {"type": "error", "message": f"Error de la API de Claude: {getattr(e, 'message', str(e))}"}

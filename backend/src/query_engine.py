@@ -261,9 +261,11 @@ def aggregate_metric(
         o = _orders()
         o = o[o.WEEK == week].rename(columns={"VALUE": "ORDERS"})
         df = df.merge(o[["COUNTRY", "CITY", "ZONE", "ORDERS"]], on=["COUNTRY", "CITY", "ZONE"], how="inner")
+        df = df.dropna(subset=["ORDERS"])  # un solo peso NaN devolvería NaN para todo el grupo
+        df = df[df.ORDERS > 0]
         g = df.groupby(group_by).apply(
-            lambda x: np.average(x.VALUE, weights=x.ORDERS), include_groups=False
-        ).round(4)
+            lambda x: round(float(np.average(x.VALUE, weights=x.ORDERS)), 4), include_groups=False
+        )
         cov = "ponderado por órdenes (solo zonas con datos de órdenes)"
         results = [{"segment": k, "value": float(v)} for k, v in g.items()]
     else:

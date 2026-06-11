@@ -59,8 +59,10 @@ class ExportRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
+    import snapshot
+
     return {"status": "ok", "model": os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
-            "sessions": len(SESSIONS)}
+            "sessions": len(SESSIONS), "snapshot": snapshot.source()}
 
 
 @app.post("/chat")

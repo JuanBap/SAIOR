@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import difflib
 import json
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -17,8 +16,6 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator
 
-ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data" / "processed"
 CATALOG = json.loads((Path(__file__).parent / "metrics_catalog.json").read_text())
 
 VALID_METRICS = [m for m in CATALOG["metrics"] if m != "Orders"]
@@ -26,14 +23,9 @@ VALID_COUNTRIES = CATALOG["dimensions"]["COUNTRY"]["values"]
 
 
 # ---------------------------------------------------------------- data access
-@lru_cache(maxsize=1)
-def _metrics() -> pd.DataFrame:
-    return pd.read_parquet(DATA / "metrics_long.parquet")
-
-
-@lru_cache(maxsize=1)
-def _orders() -> pd.DataFrame:
-    return pd.read_parquet(DATA / "orders_long.parquet")
+# v2: los datos viven en Supabase; snapshot.py los trae a memoria al arranque
+# (con fallback al parquet local si la red falla). El engine no cambia su API.
+from snapshot import get_metrics as _metrics, get_orders as _orders  # noqa: E402
 
 
 # ---------------------------------------------------------- entity resolution

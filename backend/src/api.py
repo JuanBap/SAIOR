@@ -1,8 +1,7 @@
 """API FastAPI — Sistema de Análisis Inteligente Rappi.
 
-Expone el agente conversacional vía streaming SSE y utilidades de exportación.
-La memoria conversacional se guarda por session_id en memoria (dict). Para una
-demo/local no necesita persistencia; en producción se reemplazaría por Redis.
+Expone el agente conversacional vía streaming SSE, la persistencia de
+conversaciones por usuario (Supabase) y utilidades de exportación.
 
 Ejecutar (desde backend/src):
     uvicorn api:app --reload --port 8000
@@ -17,7 +16,7 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -29,6 +28,7 @@ load_dotenv(SRC.parent / ".env")  # backend/.env
 
 import os  # noqa: E402  (después de load_dotenv para que ANTHROPIC_MODEL ya esté disponible)
 
+import store  # noqa: E402
 from agent import stream_agent  # noqa: E402
 from auth import AuthUser, get_current_user  # noqa: E402
 from insights.report import build_report, narrate, to_markdown  # noqa: E402
@@ -43,13 +43,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Memoria conversacional en proceso: session_id -> lista de mensajes (incluye tool_use/result).
-SESSIONS: dict[str, list[dict]] = {}
-
-
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
-    session_id: str | None = None
+    conversation_id: str | None = None
+
+
+class RenameRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=120)
 
 
 class ExportRequest(BaseModel):
@@ -63,32 +63,112 @@ def health() -> dict:
     import snapshot
 
     return {"status": "ok", "model": os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
-            "sessions": len(SESSIONS), "snapshot": snapshot.source()}
+            "snapshot": snapshot.source()}
+
+
+def _require_uuid(value: str) -> str:
+    try:
+        return str(uuid.UUID(value))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+
+
+class _TurnAccumulator:
+    """Reconstruye, en el servidor, el mismo payload renderizable que arma la UI
+    (segments + tools) para persistirlo y poder hacer replay fiel al recargar."""
+
+    def __init__(self) -> None:
+        self.segments: list[dict] = []
+        self.tools: list[dict] = []
+
+    def feed(self, ev: dict) -> None:
+        t = ev.get("type")
+        if t == "token":
+            if self.segments and self.segments[-1]["kind"] == "text":
+                self.segments[-1]["text"] += ev["text"]
+            else:
+                self.segments.append({"kind": "text", "text": ev["text"]})
+        elif t == "chart":
+            self.segments.append({"kind": "chart", "chart": ev})
+        elif t == "table":
+            self.segments.append({"kind": "table", "table": ev})
+        elif t == "tool":
+            if ev.get("status") == "running":
+                self.tools.append({"name": ev["name"], "input": ev.get("input"), "done": False})
+            else:
+                for tool in reversed(self.tools):
+                    if tool["name"] == ev["name"] and not tool["done"]:
+                        tool["done"] = True
+                        break
+
+    def content(self, usage: dict) -> dict:
+        return {"segments": self.segments, "tools": self.tools, "usage": usage}
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
-    """Stream SSE del agente. Eventos: token, tool, chart, table, done, error.
-    El frontend lo consume con fetch + ReadableStream (POST, no EventSource nativo)."""
-    session_id = req.session_id or uuid.uuid4().hex
-    history = SESSIONS.get(session_id, []) + [{"role": "user", "content": req.message}]
+    """Stream SSE del agente. Eventos: meta, token, tool, chart, table, done, error.
+    Sin conversation_id crea la conversación; con él, la continúa (si es del usuario)."""
+    if req.conversation_id:
+        conv_id = _require_uuid(req.conversation_id)
+        history = store.get_api_history(user.id, conv_id)
+        if history is None:
+            raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    else:
+        conv_id = store.create_conversation(user.id, store.make_title(req.message))
+        history = []
+    full_history = list(history) + [{"role": "user", "content": req.message}]
 
     async def event_source():
-        async for ev in stream_agent(history):
+        yield {"event": "meta", "data": json.dumps({"conversation_id": conv_id})}
+        acc = _TurnAccumulator()
+        async for ev in stream_agent(full_history):
             etype = ev.get("type")
             if etype == "done":
-                SESSIONS[session_id] = ev["messages"]  # persistir memoria del lado servidor
-                yield {
-                    "event": "done",
-                    "data": json.dumps(
-                        {"session_id": session_id, "usage": ev.get("usage", {})},
-                        ensure_ascii=False,
-                    ),
-                }
+                try:
+                    store.append_turn(user.id, conv_id, req.message,
+                                      acc.content(ev.get("usage", {})), ev["messages"])
+                except Exception as e:  # noqa: BLE001 — el chat respondió; avisar sin romper
+                    yield {"event": "error",
+                           "data": json.dumps({"type": "error",
+                                               "message": f"Respuesta no persistida: {e}"})}
+                yield {"event": "done",
+                       "data": json.dumps({"conversation_id": conv_id,
+                                           "usage": ev.get("usage", {})}, ensure_ascii=False)}
             else:
+                acc.feed(ev)
                 yield {"event": etype, "data": json.dumps(ev, ensure_ascii=False, default=str)}
 
     return EventSourceResponse(event_source())
+
+
+# --- Conversaciones (persistencia por usuario) ------------------------------
+@app.get("/conversations")
+def conversations(user: AuthUser = Depends(get_current_user)) -> dict:
+    return {"conversations": store.list_conversations(user.id)}
+
+
+@app.get("/conversations/{conversation_id}")
+def conversation_detail(conversation_id: str, user: AuthUser = Depends(get_current_user)) -> dict:
+    msgs = store.get_messages(user.id, _require_uuid(conversation_id))
+    if msgs is None:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    return {"id": conversation_id, "messages": msgs}
+
+
+@app.delete("/conversations/{conversation_id}")
+def conversation_delete(conversation_id: str, user: AuthUser = Depends(get_current_user)) -> dict:
+    if not store.delete_conversation(user.id, _require_uuid(conversation_id)):
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    return {"status": "deleted", "id": conversation_id}
+
+
+@app.patch("/conversations/{conversation_id}")
+def conversation_rename(conversation_id: str, req: RenameRequest,
+                        user: AuthUser = Depends(get_current_user)) -> dict:
+    if not store.rename_conversation(user.id, _require_uuid(conversation_id), req.title):
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    return {"status": "renamed", "id": conversation_id}
 
 
 @app.post("/export/csv")
@@ -141,8 +221,3 @@ def insights_narrative(refresh: bool = False, user: AuthUser = Depends(get_curre
     text = narrate(_get_report(refresh))
     return {"text": text, "available": bool(text)}
 
-
-@app.delete("/session/{session_id}")
-def reset_session(session_id: str, user: AuthUser = Depends(get_current_user)) -> dict:
-    SESSIONS.pop(session_id, None)
-    return {"status": "cleared", "session_id": session_id}

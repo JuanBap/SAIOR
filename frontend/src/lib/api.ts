@@ -46,12 +46,38 @@ export type Usage = {
 };
 
 export type SSEvent =
+  | { event: "meta"; data: { conversation_id: string } }
   | { event: "token"; data: { text: string } }
   | { event: "tool"; data: ToolEvent }
   | { event: "chart"; data: ChartSpec }
   | { event: "table"; data: TableSpec }
-  | { event: "done"; data: { session_id: string; usage: Usage } }
+  | { event: "done"; data: { conversation_id: string; usage: Usage } }
   | { event: "error"; data: { message: string } };
+
+// -------------------------------------------------------- conversaciones
+export type Conversation = {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StoredSegment =
+  | { kind: "text"; text: string }
+  | { kind: "chart"; chart: ChartSpec }
+  | { kind: "table"; table: TableSpec };
+
+export type StoredMessage = {
+  role: "user" | "assistant";
+  content: {
+    text?: string;
+    segments?: StoredSegment[];
+    tools?: { name: string; input?: Record<string, unknown>; done: boolean }[];
+    usage?: Usage;
+    tier?: string;
+  };
+  created_at: string;
+};
 
 // ------------------------------------------------------------- tipos insights
 export type Finding = {
@@ -142,17 +168,51 @@ export async function downloadInsightsMarkdown(): Promise<void> {
   URL.revokeObjectURL(a.href);
 }
 
+export async function listConversations(): Promise<Conversation[]> {
+  const r = await fetch(`${API}/conversations`, { cache: "no-store", headers: await authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return (await r.json()).conversations;
+}
+
+export async function getConversation(
+  id: string,
+): Promise<{ id: string; messages: StoredMessage[] }> {
+  const r = await fetch(`${API}/conversations/${id}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const r = await fetch(`${API}/conversations/${id}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
+
+export async function renameConversation(id: string, title: string): Promise<void> {
+  const r = await fetch(`${API}/conversations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify({ title }),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
+
 // ------------------------------------------------------------------ SSE /chat
 /** El backend responde a POST /chat con SSE; EventSource nativo no soporta POST,
  *  así que parseamos el stream a mano (separador de eventos: línea en blanco). */
 export async function* streamChat(
   message: string,
-  sessionId?: string | null,
+  conversationId?: string | null,
 ): AsyncGenerator<SSEvent> {
   const res = await fetch(`${API}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-    body: JSON.stringify({ message, session_id: sessionId ?? undefined }),
+    body: JSON.stringify({ message, conversation_id: conversationId ?? undefined }),
   });
   if (res.status === 401) throw new Error("Tu sesión expiró — vuelve a iniciar sesión.");
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);

@@ -460,7 +460,9 @@ async def stream_agent(
             usage["output_tokens"] += msg.usage.output_tokens
             usage["cache_read_input_tokens"] += getattr(msg.usage, "cache_read_input_tokens", 0) or 0
             usage["cache_creation_input_tokens"] += getattr(msg.usage, "cache_creation_input_tokens", 0) or 0
-            convo.append({"role": "assistant", "content": msg.content})
+            # dicts planos (no objetos del SDK): el historial debe poder persistirse como JSON
+            convo.append({"role": "assistant",
+                          "content": [b.model_dump(exclude_none=True) for b in msg.content]})
 
             tool_uses = [b for b in msg.content if b.type == "tool_use"]
             if msg.stop_reason != "tool_use" or not tool_uses:

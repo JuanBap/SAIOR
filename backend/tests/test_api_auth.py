@@ -27,7 +27,10 @@ def test_health_es_publico(client):
     ("get", "/insights", None),
     ("get", "/insights/markdown", None),
     ("get", "/insights/narrative", None),
-    ("delete", "/session/x", None),
+    ("get", "/conversations", None),
+    ("get", "/conversations/00000000-0000-0000-0000-000000000000", None),
+    ("delete", "/conversations/00000000-0000-0000-0000-000000000000", None),
+    ("patch", "/conversations/00000000-0000-0000-0000-000000000000", {"title": "x"}),
 ])
 def test_endpoints_requieren_token(client, method, path, body):
     r = getattr(client, method)(path, json=body) if body else getattr(client, method)(path)

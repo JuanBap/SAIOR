@@ -1,13 +1,15 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileDown, Loader2 } from "lucide-react";
 
 import type { Segment, ToolCall, Turn } from "@/components/chat/types";
 import { ChartCard } from "@/components/chat/chart-card";
 import { Md } from "@/components/chat/markdown";
 import { TableCard } from "@/components/chat/table-card";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { downloadElementPdf } from "@/lib/pdf";
 import { costUSD, totalInputTokens } from "@/lib/format";
 
 /** Resumen compacto de los parámetros con que el agente llamó la herramienta. */
@@ -58,22 +60,26 @@ function SegmentView({ seg }: { seg: Segment }) {
   return <TableCard table={seg.table} />;
 }
 
-/** Imprime a PDF solo este turno: marca su nodo y deja que el navegador imprima. */
-function printTurn(el: HTMLElement | null) {
-  if (!el) return;
-  const cleanup = () => {
-    el.classList.remove("print-target");
-    document.body.classList.remove("print-single");
-    window.removeEventListener("afterprint", cleanup);
-  };
-  window.addEventListener("afterprint", cleanup);
-  el.classList.add("print-target");
-  document.body.classList.add("print-single");
-  window.print();
-}
-
 export function TurnView({ turn }: { turn: Turn }) {
   const ref = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+  const [downloading, setDownloading] = useState(false);
+
+  async function exportPdf() {
+    const ok = await confirm({
+      title: "Descargar respuesta en PDF",
+      message: "Se generará un PDF con esta respuesta (texto, gráfico y tabla). ¿Continuar?",
+      confirmText: "Sí, descargar",
+      cancelText: "No",
+    });
+    if (!ok) return;
+    setDownloading(true);
+    try {
+      await downloadElementPdf(ref.current, "respuesta-saior.pdf");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (turn.role === "user") {
     const text = turn.segments[0]?.kind === "text" ? turn.segments[0].text : "";
@@ -130,11 +136,18 @@ export function TurnView({ turn }: { turn: Turn }) {
               {costUSD(turn.usage).toFixed(4)} USD
             </span>
             <button
-              onClick={() => printTurn(ref.current)}
-              title="Guardar esta respuesta como PDF"
-              className="flex items-center gap-1 rounded px-1 text-muted-foreground/70 transition-colors hover:text-foreground print:hidden"
+              data-no-pdf="true"
+              onClick={exportPdf}
+              disabled={downloading}
+              title="Descargar esta respuesta como PDF"
+              className="flex items-center gap-1 rounded px-1 text-muted-foreground/70 transition-colors hover:text-foreground disabled:opacity-50 print:hidden"
             >
-              <FileDown className="size-3" /> PDF
+              {downloading ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <FileDown className="size-3" />
+              )}
+              PDF
             </button>
           </p>
         )}

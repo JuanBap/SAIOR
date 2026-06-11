@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 import { Header } from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -33,12 +34,14 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <ThemeProvider>
-          <div
-            aria-hidden
-            className="pointer-events-none fixed inset-x-0 top-0 z-0 h-72 bg-[radial-gradient(55%_100%_at_50%_0%,rgba(255,68,31,0.07),transparent_70%)] print:hidden dark:bg-[radial-gradient(55%_100%_at_50%_0%,rgba(255,68,31,0.10),transparent_70%)]"
-          />
-          <Header />
-          <main className="relative z-10 flex flex-1 flex-col">{children}</main>
+          <ConfirmProvider>
+            <div
+              aria-hidden
+              className="pointer-events-none fixed inset-x-0 top-0 z-0 h-72 bg-[radial-gradient(55%_100%_at_50%_0%,rgba(255,68,31,0.07),transparent_70%)] print:hidden dark:bg-[radial-gradient(55%_100%_at_50%_0%,rgba(255,68,31,0.10),transparent_70%)]"
+            />
+            <Header />
+            <main className="relative z-10 flex flex-1 flex-col">{children}</main>
+          </ConfirmProvider>
         </ThemeProvider>
       </body>
     </html>

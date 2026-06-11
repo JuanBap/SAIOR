@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -26,8 +26,10 @@ import { CategoryTables } from "@/components/insights/category-tables";
 import { FindingCard } from "@/components/insights/finding-card";
 import { Heatmap } from "@/components/insights/heatmap";
 import { Md } from "@/components/chat/markdown";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { downloadElementPdf } from "@/lib/pdf";
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -52,6 +54,25 @@ export default function InsightsPage() {
   const [emailTo, setEmailTo] = useState("");
   const [emailState, setEmailState] = useState<"idle" | "sending" | "ok" | "error">("idle");
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
+
+  async function exportPdf() {
+    const ok = await confirm({
+      title: "Descargar reporte en PDF",
+      message: "Se generará un PDF con el reporte de insights completo. ¿Continuar?",
+      confirmText: "Sí, descargar",
+      cancelText: "No",
+    });
+    if (!ok) return;
+    setPdfBusy(true);
+    try {
+      await downloadElementPdf(reportRef.current, "insights-rappi.pdf");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   async function sendEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -137,7 +158,7 @@ export default function InsightsPage() {
   const s = report.summary;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+    <div ref={reportRef} className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -149,7 +170,7 @@ export default function InsightsPage() {
             determinista, sin LLM en el cálculo
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 print:hidden">
+        <div data-no-pdf="true" className="flex flex-wrap gap-2 print:hidden">
           <Button size="sm" variant="outline" onClick={() => load(true)} disabled={loading}>
             {loading ? (
               <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -161,8 +182,13 @@ export default function InsightsPage() {
           <Button size="sm" variant="outline" onClick={downloadInsightsMarkdown}>
             <Download data-icon="inline-start" /> Markdown
           </Button>
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
-            <Printer data-icon="inline-start" /> PDF
+          <Button size="sm" variant="outline" onClick={exportPdf} disabled={pdfBusy}>
+            {pdfBusy ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <Printer data-icon="inline-start" />
+            )}
+            PDF
           </Button>
           <Button
             size="sm"
@@ -190,6 +216,7 @@ export default function InsightsPage() {
       {emailOpen && (
         <form
           onSubmit={sendEmail}
+          data-no-pdf="true"
           className="flex flex-wrap items-center gap-2 rounded-xl border bg-card/60 p-3 print:hidden"
         >
           <Mail className="size-4 text-rappi-soft" />

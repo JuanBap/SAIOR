@@ -1,8 +1,9 @@
 # Arquitectura Nueva — SAIOR v2: Supabase + multiusuario + SQL de dos niveles
 
-> Plan de evolución de la arquitectura. Estado: **aprobado, pendiente de implementación**.
-> Rama: `feat/supabase-architecture` (desde `feat/project-starter`; los PRs apuntan a `develop`).
-> Este documento es vivo: cada fase puede ajustar detalles, pero las decisiones de §1 están tomadas.
+> Estado: **IMPLEMENTADO** (fases F0–F6 completas en `feat/supabase-architecture`).
+> Verificación final: 56 tests backend + runner en vivo 9/9 (incluye caso nivel-2 y
+> aserciones de routing por tier). Este documento queda como registro del plan y sus
+> decisiones; la arquitectura as-built se resume en ARCHITECTURE.md y el README.
 
 ---
 

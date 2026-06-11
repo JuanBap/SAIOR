@@ -80,6 +80,13 @@ CASES = [
         None,
     ),
     (
+        "9 nivel-2 SQL",
+        "¿Cuál es la mediana de Perfect Orders por ciudad en Colombia esta semana?",
+        {"run_sql"},
+        r"(mediana|percentil|pasto)",
+        None,
+    ),
+    (
         "7 ctx negocio",
         "¿Qué zonas problemáticas hay en Colombia?",
         {"query_metrics", "cross_metric_analysis", "get_trend", "aggregate_metric", "growth_analysis"},
@@ -106,7 +113,8 @@ FOLLOW_UP = (
 
 async def run_case(messages: list[dict], question: str) -> dict:
     """Ejecuta una pregunta y devuelve lo observado + el historial resultante."""
-    out = {"tools": [], "charts": 0, "tables": 0, "text": "", "error": None, "usage": {}, "messages": None}
+    out = {"tools": [], "charts": 0, "tables": 0, "text": "", "error": None,
+           "usage": {}, "messages": None, "tier": None}
     history = messages + [{"role": "user", "content": question}]
     async for ev in stream_agent(history):
         t = ev["type"]
@@ -123,6 +131,7 @@ async def run_case(messages: list[dict], question: str) -> dict:
         elif t == "done":
             out["usage"] = ev.get("usage", {})
             out["messages"] = ev["messages"]
+            out["tier"] = ev.get("tier")
     return out
 
 
@@ -151,6 +160,9 @@ def evaluate(case, result) -> list[str]:
         problems.append("sin visualizaciones")
     if input_check and not input_check(result["tools"]):
         problems.append("parámetros de herramienta no cumplen lo esperado")
+    expected_tier = "generated" if "run_sql" in expected_tools else "verified"
+    if result.get("tier") != expected_tier:
+        problems.append(f"tier {result.get('tier')!r}, esperado {expected_tier!r}")
     return problems
 
 

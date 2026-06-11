@@ -1,5 +1,13 @@
 # Arquitectura — SAIOR (Sistema de Análisis Inteligente de Operaciones Rappi)
 
+> **v2 (Supabase, multiusuario):** sobre la base descrita aquí, la versión actual agrega
+> login con Supabase Auth (JWT validado por JWKS en FastAPI), conversaciones persistentes
+> por usuario con replay fiel (gráficos incluidos), datos servidos desde Postgres con
+> snapshot + fallback, y un **nivel 2 de consulta** — `run_sql` con validación AST, rol
+> read-only, LIMIT/timeout y auditoría en `app.query_log`, distinguido en la UI con un
+> badge "consulta verificada / SQL generado". Plan, decisiones y modelo de datos completos:
+> [Arquitectura-Nueva.md](Arquitectura-Nueva.md).
+
 **Principio rector: el LLM nunca calcula. El LLM traduce, orquesta y narra. Python calcula.**
 
 Esto convierte un sistema no determinista en uno de **precisión determinista**: la única

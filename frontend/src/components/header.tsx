@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, LogOut, MessageSquare } from "lucide-react";
+import { FlaskConical, LayoutDashboard, LogOut, MessageSquare, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import { getHealth } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
@@ -12,13 +13,18 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/insights", label: "Insights", icon: LayoutDashboard },
+  { href: "/lab", label: "Lab", icon: FlaskConical },
 ] as const;
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [health, setHealth] = useState<"checking" | "ok" | "down">("checking");
   const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
@@ -100,6 +106,20 @@ export function Header() {
           />
           API
         </span>
+
+        <button
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          title={
+            !mounted
+              ? "Cambiar tema"
+              : resolvedTheme === "dark"
+                ? "Cambiar a modo claro"
+                : "Cambiar a modo oscuro"
+          }
+          className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          {mounted && (resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />)}
+        </button>
 
         {email ? (
           <span className="flex items-center gap-2 text-[11px] text-muted-foreground">

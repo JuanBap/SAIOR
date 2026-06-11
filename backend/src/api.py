@@ -28,6 +28,7 @@ load_dotenv(SRC.parent / ".env")  # backend/.env
 
 import os  # noqa: E402  (después de load_dotenv para que ANTHROPIC_MODEL ya esté disponible)
 
+import lab as lab_metrics  # noqa: E402
 import store  # noqa: E402
 from agent import stream_agent  # noqa: E402
 from auth import AuthUser, get_current_user  # noqa: E402
@@ -187,6 +188,29 @@ def export_csv(req: ExportRequest, user: AuthUser = Depends(get_current_user)):
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# --- Lab (observabilidad para evaluación) -----------------------------------
+@app.get("/lab")
+def lab(user: AuthUser = Depends(get_current_user)) -> dict:
+    """Dashboard de observabilidad: system prompt real, consumo de tokens/costos,
+    distribución de tiers, frecuencia de herramientas y auditoría del nivel 2."""
+    import snapshot
+    from agent import DEFAULT_MODEL, RUN_SQL_ENABLED, TOOLS, build_system_prompt
+
+    prompt = build_system_prompt()
+    return {
+        "system": {
+            "model": DEFAULT_MODEL,
+            "temperature": 0,
+            "run_sql_enabled": RUN_SQL_ENABLED,
+            "snapshot_source": snapshot.source(),
+            "prompt": prompt,
+            "prompt_chars": len(prompt),
+            "tools": [{"name": t["name"], "description": t["description"]} for t in TOOLS],
+        },
+        **lab_metrics.metrics(),
+    }
 
 
 # --- Insights (Sistema de Insights Automáticos, 30%) -----------------------

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED = ["/chat", "/insights"];
+const PROTECTED = ["/chat", "/insights", "/lab"];
 
 /** Proxy de Next 16 (reemplazo de middleware): refresca la sesión de Supabase en
  *  cookies y aplica el gating de rutas — sin sesión no se entra a la app. */

@@ -185,7 +185,7 @@ export default function InsightsPage() {
       {/* Señales positivas */}
       {report.positive_signals.length > 0 && (
         <section className="space-y-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
             <TrendingUp className="size-4" /> Señales positivas
           </h2>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -198,7 +198,7 @@ export default function InsightsPage() {
                 <p className="mt-0.5 text-muted-foreground">
                   {[f.city, f.zone].filter(Boolean).join(" / ")} ({f.country})
                 </p>
-                <p className="mt-1 font-mono text-[11px] text-emerald-200/90">{f.evidence}</p>
+                <p className="mt-1 font-mono text-[11px] text-emerald-700/90 dark:text-emerald-200/90">{f.evidence}</p>
               </div>
             ))}
           </div>
@@ -213,13 +213,13 @@ export default function InsightsPage() {
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
           <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-400" />
           <div>
-            <p className="font-medium text-amber-200">Calidad de datos</p>
+            <p className="font-medium text-amber-800 dark:text-amber-200">Calidad de datos</p>
             {report.quality.map((f, i) => (
-              <p key={i} className="mt-1 text-[13px] text-amber-100/80">
+              <p key={i} className="mt-1 text-[13px] text-amber-800/80 dark:text-amber-100/80">
                 <span className="font-medium">{f.metric}:</span> {f.evidence}
               </p>
             ))}
-            <p className="mt-1.5 text-[12px] text-amber-200/60 italic">
+            <p className="mt-1.5 text-[12px] text-amber-700/70 dark:text-amber-200/60 italic">
               {report.quality[0]?.recommendation}
             </p>
           </div>

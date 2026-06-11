@@ -128,6 +128,52 @@ export type InsightsReport = {
   };
 };
 
+// ---------------------------------------------------------------- tipos lab
+export type LabData = {
+  system: {
+    model: string;
+    temperature: number;
+    run_sql_enabled: boolean;
+    snapshot_source: string;
+    prompt: string;
+    prompt_chars: number;
+    tools: { name: string; description: string }[];
+  };
+  usage: {
+    turns: number;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    cache_hit_pct: number;
+    est_cost_usd: number;
+    avg_cost_per_turn_usd: number;
+  };
+  tiers: { verified: number; generated: number };
+  tools_freq: { name: string; count: number }[];
+  conversations: {
+    total: number;
+    messages: number;
+    by_user: { email: string; conversations: number; turns: number }[];
+  };
+  query_log: {
+    total: number;
+    ok: number;
+    rejected: number;
+    avg_ms: number;
+    recent: {
+      email: string;
+      ok: boolean;
+      sql: string;
+      error: string | null;
+      rows: number | null;
+      ms: number | null;
+      at: string;
+    }[];
+  };
+  activity: { date: string; turns: number }[];
+};
+
 // ------------------------------------------------------------------ fetchers
 export async function getHealth(): Promise<boolean> {
   try {
@@ -168,6 +214,12 @@ export async function downloadInsightsMarkdown(): Promise<void> {
   a.download = "insights-rappi.md";
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+export async function getLab(): Promise<LabData> {
+  const r = await fetch(`${API}/lab`, { cache: "no-store", headers: await authHeaders() });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
 export async function listConversations(): Promise<Conversation[]> {

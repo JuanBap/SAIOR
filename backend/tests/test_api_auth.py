@@ -28,6 +28,7 @@ def test_health_es_publico(client):
     ("get", "/insights/markdown", None),
     ("get", "/insights/narrative", None),
     ("get", "/conversations", None),
+    ("get", "/lab", None),
     ("get", "/conversations/00000000-0000-0000-0000-000000000000", None),
     ("delete", "/conversations/00000000-0000-0000-0000-000000000000", None),
     ("patch", "/conversations/00000000-0000-0000-0000-000000000000", {"title": "x"}),

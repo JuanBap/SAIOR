@@ -1,5 +1,6 @@
 "use client";
 
+import { useTheme } from "next-themes";
 import {
   Bar,
   BarChart,
@@ -19,14 +20,6 @@ import { fmtValue, shortMetric } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const RAPPI = "#ff441f";
-const GRID = "rgba(255,255,255,0.07)";
-const AXIS = { fill: "#a1a1aa", fontSize: 11 } as const;
-const TOOLTIP_STYLE = {
-  backgroundColor: "#1c1c1f",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 8,
-  fontSize: 12,
-} as const;
 
 function truncate(s: unknown, n = 22): string {
   const str = String(s ?? "");
@@ -35,6 +28,19 @@ function truncate(s: unknown, n = 22): string {
 
 export function ChartCard({ chart }: { chart: ChartSpec }) {
   const { kind, data, xKey, yKey, meta } = chart;
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme !== "light";
+
+  const GRID = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.09)";
+  const AXIS = { fill: dark ? "#a1a1aa" : "#52525b", fontSize: 11 } as const;
+  const TOOLTIP_STYLE = {
+    backgroundColor: dark ? "#1c1c1f" : "#ffffff",
+    border: dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.12)",
+    borderRadius: 8,
+    fontSize: 12,
+    color: dark ? "#fafafa" : "#18181b",
+  } as const;
+
   const fmt = (v: unknown) => fmtValue(typeof v === "number" ? v : Number(v), meta?.format);
 
   let body: React.ReactNode = null;

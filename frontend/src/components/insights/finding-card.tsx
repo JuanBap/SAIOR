@@ -5,8 +5,8 @@ import { findingLocation } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const SEVERITY: Record<string, { label: string; cls: string; border: string }> = {
-  high: { label: "ALTA", cls: "bg-red-500/15 text-red-300", border: "border-l-red-500/70" },
-  medium: { label: "MEDIA", cls: "bg-amber-500/15 text-amber-300", border: "border-l-amber-500/70" },
+  high: { label: "ALTA", cls: "bg-red-500/15 text-red-700 dark:text-red-300", border: "border-l-red-500/70" },
+  medium: { label: "MEDIA", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300", border: "border-l-amber-500/70" },
   low: { label: "BAJA", cls: "bg-muted text-muted-foreground", border: "border-l-zinc-600" },
 };
 

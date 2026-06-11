@@ -78,7 +78,7 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
             />
             {error && (
-              <p className="flex items-start gap-1.5 text-xs text-red-300">
+              <p className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-300">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 {error}
               </p>

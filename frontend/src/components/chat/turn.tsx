@@ -83,7 +83,7 @@ export function TurnView({ turn }: { turn: Turn }) {
           <span className="ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm bg-rappi-soft align-text-bottom" />
         )}
         {turn.error && (
-          <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             {turn.error}
           </div>
@@ -92,14 +92,14 @@ export function TurnView({ turn }: { turn: Turn }) {
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/70">
             {turn.tier === "generated" ? (
               <span
-                className="rounded bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-300"
+                className="rounded bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-700 dark:text-amber-300"
                 title="Esta respuesta usó SQL generado por el agente (read-only, validado por AST y auditado), además de las consultas verificadas."
               >
                 🧪 SQL generado · auditado
               </span>
             ) : (
               <span
-                className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-300/80"
+                className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700/90 dark:text-emerald-300/80"
                 title="Respuesta resuelta solo con consultas verificadas (deterministas, con tests de regresión)."
               >
                 ✓ consultas verificadas

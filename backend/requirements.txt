@@ -17,3 +17,6 @@ python-dotenv>=1.0
 
 # --- Insights engine (Block C) ---
 scipy>=1.13            # Spearman correlations, winsorization
+
+# --- Tests ---
+pytest>=8.2            # golden regression suite (tests/)

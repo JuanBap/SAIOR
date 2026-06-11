@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -30,6 +30,7 @@ load_dotenv(SRC.parent / ".env")  # backend/.env
 import os  # noqa: E402  (después de load_dotenv para que ANTHROPIC_MODEL ya esté disponible)
 
 from agent import stream_agent  # noqa: E402
+from auth import AuthUser, get_current_user  # noqa: E402
 from insights.report import build_report, narrate, to_markdown  # noqa: E402
 
 app = FastAPI(title="Rappi Insights API", version="0.1.0")
@@ -66,7 +67,7 @@ def health() -> dict:
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, user: AuthUser = Depends(get_current_user)):
     """Stream SSE del agente. Eventos: token, tool, chart, table, done, error.
     El frontend lo consume con fetch + ReadableStream (POST, no EventSource nativo)."""
     session_id = req.session_id or uuid.uuid4().hex
@@ -91,7 +92,7 @@ async def chat(req: ChatRequest):
 
 
 @app.post("/export/csv")
-def export_csv(req: ExportRequest):
+def export_csv(req: ExportRequest, user: AuthUser = Depends(get_current_user)):
     """Exporta una tabla (la que el frontend ya recibió por SSE) a CSV."""
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -116,13 +117,13 @@ def _get_report(refresh: bool = False) -> dict:
 
 
 @app.get("/insights")
-def insights(refresh: bool = False) -> dict:
+def insights(refresh: bool = False, user: AuthUser = Depends(get_current_user)) -> dict:
     """Reporte ejecutivo estructurado (JSON): resumen, top hallazgos, detalle por categoría, calidad."""
     return _get_report(refresh)
 
 
 @app.get("/insights/markdown")
-def insights_markdown(ai: bool = False, refresh: bool = False):
+def insights_markdown(ai: bool = False, refresh: bool = False, user: AuthUser = Depends(get_current_user)):
     """Reporte ejecutivo en Markdown. ai=true antepone una síntesis redactada por Claude."""
     report = _get_report(refresh)
     md = to_markdown(report)
@@ -134,7 +135,7 @@ def insights_markdown(ai: bool = False, refresh: bool = False):
 
 
 @app.get("/insights/narrative")
-def insights_narrative(refresh: bool = False) -> dict:
+def insights_narrative(refresh: bool = False, user: AuthUser = Depends(get_current_user)) -> dict:
     """Síntesis ejecutiva redactada por Claude desde los hallazgos ya calculados.
     Devuelve available=false si no hay ANTHROPIC_API_KEY configurada."""
     text = narrate(_get_report(refresh))
@@ -142,6 +143,6 @@ def insights_narrative(refresh: bool = False) -> dict:
 
 
 @app.delete("/session/{session_id}")
-def reset_session(session_id: str) -> dict:
+def reset_session(session_id: str, user: AuthUser = Depends(get_current_user)) -> dict:
     SESSIONS.pop(session_id, None)
     return {"status": "cleared", "session_id": session_id}

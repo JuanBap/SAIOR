@@ -1,6 +1,16 @@
-/** Cliente del backend FastAPI: tipos compartidos + parser SSE del /chat. */
+/** Cliente del backend FastAPI: tipos compartidos + parser SSE del /chat.
+ *  Todas las llamadas (salvo /health) viajan con el JWT de Supabase. */
+
+import { supabase } from "@/lib/supabase/client";
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {};
+}
 
 // ---------------------------------------------------------------- tipos chat
 export type ChartSpec = {
@@ -103,19 +113,26 @@ export async function getHealth(): Promise<boolean> {
 export async function getInsights(refresh = false): Promise<InsightsReport> {
   const r = await fetch(`${API}/insights${refresh ? "?refresh=true" : ""}`, {
     cache: "no-store",
+    headers: await authHeaders(),
   });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
 
 export async function getNarrative(): Promise<{ text: string; available: boolean }> {
-  const r = await fetch(`${API}/insights/narrative`, { cache: "no-store" });
+  const r = await fetch(`${API}/insights/narrative`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
 
 export async function downloadInsightsMarkdown(): Promise<void> {
-  const r = await fetch(`${API}/insights/markdown`, { cache: "no-store" });
+  const r = await fetch(`${API}/insights/markdown`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const blob = await r.blob();
   const a = document.createElement("a");
@@ -134,9 +151,10 @@ export async function* streamChat(
 ): AsyncGenerator<SSEvent> {
   const res = await fetch(`${API}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({ message, session_id: sessionId ?? undefined }),
   });
+  if (res.status === 401) throw new Error("Tu sesión expiró — vuelve a iniciar sesión.");
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 
   const reader = res.body.getReader();

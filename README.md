@@ -88,7 +88,9 @@ Detección estadística pura (sin LLM en el cálculo): anomalías WoW ±10%, ten
 semanas, benchmarking de peers >1.5σ, oportunidades High Priority, correlaciones Spearman y
 calidad de datos — priorizadas por **impacto ponderado por volumen de órdenes**
 (`impact = severidad × (1 + ln(1 + órdenes))`). Dashboard con heatmap país×métrica, export
-**Markdown/PDF** y **síntesis ejecutiva** redactada por Claude solo desde los números.
+**Markdown/PDF**, **envío por email** (Resend) y **síntesis ejecutiva** redactada por Claude
+solo desde los números. En el chat, cada respuesta tiene export **CSV** (tabla) y **PDF** (la
+respuesta completa con su gráfico).
 
 ---
 

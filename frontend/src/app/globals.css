@@ -170,3 +170,25 @@
     print-color-adjust: exact;
   }
 }
+
+/* Imprimir una sola respuesta del chat a PDF: oculta todo menos el turno objetivo */
+@media print {
+  body.print-single * {
+    visibility: hidden !important;
+  }
+  body.print-single .print-target,
+  body.print-single .print-target * {
+    visibility: visible !important;
+  }
+  body.print-single .print-target {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 8px;
+  }
+  body.print-single .print-target .recharts-surface {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

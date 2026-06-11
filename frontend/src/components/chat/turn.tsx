@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useRef } from "react";
+import { AlertTriangle, CheckCircle2, FileDown, Loader2 } from "lucide-react";
 
 import type { Segment, ToolCall, Turn } from "@/components/chat/types";
 import { ChartCard } from "@/components/chat/chart-card";
@@ -57,7 +58,23 @@ function SegmentView({ seg }: { seg: Segment }) {
   return <TableCard table={seg.table} />;
 }
 
+/** Imprime a PDF solo este turno: marca su nodo y deja que el navegador imprima. */
+function printTurn(el: HTMLElement | null) {
+  if (!el) return;
+  const cleanup = () => {
+    el.classList.remove("print-target");
+    document.body.classList.remove("print-single");
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  el.classList.add("print-target");
+  document.body.classList.add("print-single");
+  window.print();
+}
+
 export function TurnView({ turn }: { turn: Turn }) {
+  const ref = useRef<HTMLDivElement>(null);
+
   if (turn.role === "user") {
     const text = turn.segments[0]?.kind === "text" ? turn.segments[0].text : "";
     return (
@@ -70,7 +87,7 @@ export function TurnView({ turn }: { turn: Turn }) {
   }
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3" ref={ref}>
       <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-lg bg-rappi text-[11px] font-black text-white">
         R
       </span>
@@ -112,6 +129,13 @@ export function TurnView({ turn }: { turn: Turn }) {
               / {turn.usage.output_tokens.toLocaleString("es")} out tokens · ≈ $
               {costUSD(turn.usage).toFixed(4)} USD
             </span>
+            <button
+              onClick={() => printTurn(ref.current)}
+              title="Guardar esta respuesta como PDF"
+              className="flex items-center gap-1 rounded px-1 text-muted-foreground/70 transition-colors hover:text-foreground print:hidden"
+            >
+              <FileDown className="size-3" /> PDF
+            </button>
           </p>
         )}
       </div>

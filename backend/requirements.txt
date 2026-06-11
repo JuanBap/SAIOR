@@ -17,6 +17,7 @@ python-dotenv>=1.0
 
 # --- Insights engine (Block C) ---
 scipy>=1.13            # Spearman correlations, winsorization
+markdown>=3.6          # reporte de insights -> HTML para el email
 
 # --- Supabase / Postgres (arquitectura v2) ---
 psycopg[binary]>=3.2   # conexión Postgres (ETL, snapshot, nivel 2)

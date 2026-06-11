@@ -29,6 +29,7 @@ def test_health_es_publico(client):
     ("get", "/insights/narrative", None),
     ("get", "/conversations", None),
     ("get", "/lab", None),
+    ("post", "/insights/email", {"to": "x@y.com"}),
     ("get", "/conversations/00000000-0000-0000-0000-000000000000", None),
     ("delete", "/conversations/00000000-0000-0000-0000-000000000000", None),
     ("patch", "/conversations/00000000-0000-0000-0000-000000000000", {"title": "x"}),

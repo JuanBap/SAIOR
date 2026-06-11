@@ -29,6 +29,7 @@ load_dotenv(SRC.parent / ".env")  # backend/.env
 import os  # noqa: E402  (después de load_dotenv para que ANTHROPIC_MODEL ya esté disponible)
 
 import lab as lab_metrics  # noqa: E402
+import mailer  # noqa: E402
 import store  # noqa: E402
 from agent import stream_agent  # noqa: E402
 from auth import AuthUser, get_current_user  # noqa: E402
@@ -51,6 +52,11 @@ class ChatRequest(BaseModel):
 
 class RenameRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=120)
+
+
+class EmailRequest(BaseModel):
+    to: str = Field(..., min_length=3, max_length=200)
+    ai: bool = False
 
 
 class ExportRequest(BaseModel):
@@ -247,4 +253,20 @@ def insights_narrative(refresh: bool = False, user: AuthUser = Depends(get_curre
     Devuelve available=false si no hay ANTHROPIC_API_KEY configurada."""
     text = narrate(_get_report(refresh))
     return {"text": text, "available": bool(text)}
+
+
+@app.post("/insights/email")
+def insights_email(req: EmailRequest, user: AuthUser = Depends(get_current_user)) -> dict:
+    """Envía el reporte ejecutivo por email (Resend). ai=true antepone la síntesis IA.
+    Degrada con available=false si no hay RESEND_API_KEY."""
+    if not mailer.is_valid_email(req.to):
+        raise HTTPException(status_code=422, detail="Dirección de email inválida")
+    report = _get_report()
+    md_text = to_markdown(report)
+    if req.ai:
+        prose = narrate(report)
+        if prose:
+            md_text = f"## Síntesis ejecutiva (IA)\n\n{prose}\n\n---\n\n{md_text}"
+    subject = f"SAIOR · Insights de Operaciones Rappi ({report['generated_at'][:10]})"
+    return mailer.send_report_email(req.to, subject, md_text)
 

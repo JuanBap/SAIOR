@@ -202,6 +202,20 @@ export async function getNarrative(): Promise<{ text: string; available: boolean
   return r.json();
 }
 
+export async function sendInsightsEmail(
+  to: string,
+  ai = false,
+): Promise<{ available: boolean; sent: boolean; message?: string; to?: string }> {
+  const r = await fetch(`${API}/insights/email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify({ to, ai }),
+  });
+  if (r.status === 422) return { available: true, sent: false, message: "Email inválido." };
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
 export async function downloadInsightsMarkdown(): Promise<void> {
   const r = await fetch(`${API}/insights/markdown`, {
     cache: "no-store",

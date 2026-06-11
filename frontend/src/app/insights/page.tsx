@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
   Download,
   Loader2,
+  Mail,
   Printer,
   RefreshCw,
+  Send,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
@@ -15,8 +18,10 @@ import {
   downloadInsightsMarkdown,
   getInsights,
   getNarrative,
+  sendInsightsEmail,
   type InsightsReport,
 } from "@/lib/api";
+import { Input } from "@/components/ui/input";
 import { CategoryTables } from "@/components/insights/category-tables";
 import { FindingCard } from "@/components/insights/finding-card";
 import { Heatmap } from "@/components/insights/heatmap";
@@ -43,6 +48,30 @@ export default function InsightsPage() {
   const [error, setError] = useState<string | null>(null);
   const [narrative, setNarrative] = useState<string | null>(null);
   const [narrating, setNarrating] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailState, setEmailState] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+
+  async function sendEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setEmailState("sending");
+    setEmailMsg(null);
+    try {
+      const r = await sendInsightsEmail(emailTo, !!narrative);
+      if (r.sent) {
+        setEmailState("ok");
+        setEmailMsg(`Reporte enviado a ${r.to}`);
+        setTimeout(() => setEmailOpen(false), 2500);
+      } else {
+        setEmailState("error");
+        setEmailMsg(r.message ?? "No se pudo enviar.");
+      }
+    } catch {
+      setEmailState("error");
+      setEmailMsg("Error de conexión con el backend.");
+    }
+  }
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -135,6 +164,17 @@ export default function InsightsPage() {
           <Button size="sm" variant="outline" onClick={() => window.print()}>
             <Printer data-icon="inline-start" /> PDF
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setEmailOpen((o) => !o);
+              setEmailState("idle");
+              setEmailMsg(null);
+            }}
+          >
+            <Mail data-icon="inline-start" /> Email
+          </Button>
           <Button size="sm" onClick={generateNarrative} disabled={narrating}>
             {narrating ? (
               <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -145,6 +185,45 @@ export default function InsightsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Mini-formulario de email */}
+      {emailOpen && (
+        <form
+          onSubmit={sendEmail}
+          className="flex flex-wrap items-center gap-2 rounded-xl border bg-card/60 p-3 print:hidden"
+        >
+          <Mail className="size-4 text-rappi-soft" />
+          <Input
+            type="email"
+            required
+            placeholder="destinatario@empresa.com"
+            value={emailTo}
+            onChange={(e) => setEmailTo(e.target.value)}
+            className="h-9 w-64"
+            autoFocus
+          />
+          <Button type="submit" size="sm" disabled={emailState === "sending"}>
+            {emailState === "sending" ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <Send data-icon="inline-start" />
+            )}
+            Enviar reporte{narrative ? " + síntesis IA" : ""}
+          </Button>
+          {emailMsg && (
+            <span
+              className={`flex items-center gap-1.5 text-xs ${
+                emailState === "ok"
+                  ? "text-emerald-600 dark:text-emerald-300"
+                  : "text-amber-700 dark:text-amber-300"
+              }`}
+            >
+              {emailState === "ok" && <CheckCircle2 className="size-3.5" />}
+              {emailMsg}
+            </span>
+          )}
+        </form>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
